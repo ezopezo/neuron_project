@@ -42,7 +42,7 @@ def comparer(neuron, deviation): # 100% match should be with itself in duplicate
         print('ratio: ', ratio, first, other)
 '''
  
-def create_bins(deviation_seq): # refactor!!!!!!!!!!!! important algorithm, awful implementation, problematic implementation - bad balanced end [33, 34, 35, 36], [37]]
+def create_bins(deviation_seq): # refactor!!!!!!!!!!!! important algorithm, awful implementation, problematic implementation - bad balanced end ...[33, 34, 35, 36], [37]]
     del deviation_seq[0] # removing zeros form beg. and end - not needed for averaging bins
     del deviation_seq[-1]
     bins = list()
