@@ -42,28 +42,38 @@ def comparer(neuron, deviation): # 100% match should be with itself in duplicate
         print('ratio: ', ratio, first, other)
 '''
  
-def create_bins(deviation_seq): # refactor!!!!!!!!!!!! important algorithm
+def create_bins(deviation_seq): # refactor!!!!!!!!!!!! important algorithm, awful implementation, problematic implementation - bad balanced end [33, 34, 35, 36], [37]]
     del deviation_seq[0] # removing zeros form beg. and end - not needed for averaging bins
     del deviation_seq[-1]
     bins = list()
     average = list()
     l = round(len(deviation_seq)/10) # therd coded pieces for now - should be based on shortest sequence of deviation from neuron 
-    extended = 10 - len(deviation_seq) % l # how many last bins shoul be extendend by 1 value
+    extended = len(deviation_seq) % l # how many last bins shoul be extendend by
     
-    k = 1
-    for i in range(1, 10+1):
-        
-        if i < extended:
-            bins.append(deviation_seq[i*l-l:i*l]) # slices x
-        else:
-            print(i*l-l, i*l+k)
-            bins.append(deviation_seq[i*l-l:i*l+k]) # slices x+1
-            k += 1
-        #average.append(sum(deviation_seq[i*l-l:i*l]) / len(deviation_seq[i*l-l:i*l]))
+    for i in range(1, 10+1): 
+        bins.append(deviation_seq[i*l-l:i*l])
+
+    last = deviation_seq[i*l:]
     print(bins)
+    if last:
+        for j in range(-len(last), 0):
+            bins[j-1] += bins[j][:len(last)+j]
+            del bins[j][:len(last)+j]
+        bins[-1] += last
+
+    print(bins)
+    if bins[-1] == []: # shorten truthiness
+        for k in range(-1, -len(bins[0]), -1):
+            bins[k] += bins[k-1][-(len(bins[0])+k):]
+            del bins[k-1][-(len(bins[0])+k):]
+    print(bins)
+    print(len(bins))
+    #average.append(sum(deviation_seq[i*l:]) / len(deviation_seq[i*l:]))
+    # print(average)
+  
 
 
-print(create_bins([0, 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,  0]))
+print(create_bins([0, 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,0]))
 
 
 def evaluate_growth_deviation(neuron, x_coords, y_coords):
