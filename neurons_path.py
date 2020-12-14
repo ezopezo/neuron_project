@@ -1,7 +1,7 @@
 import csv
 import matplotlib.pyplot as plt
 from math import sqrt, sin, radians, acos, degrees
-from itertools import islice
+import numpy
 
 
 def open_file_lazy(file):
@@ -42,38 +42,16 @@ def comparer(neuron, deviation): # 100% match should be with itself in duplicate
         print('ratio: ', ratio, first, other)
 '''
  
-def create_bins(deviation_seq): # refactor!!!!!!!!!!!! important algorithm, awful implementation, problematic implementation - bad balanced end ...[33, 34, 35, 36], [37]]
+def create_bins(neuron, deviation_seq): # refactor!!!!!!!!!!!! important algorithm, awful implementation, problematic implementation - bad balanced end ...[33, 34, 35, 36], [37]]
     del deviation_seq[0] # removing zeros form beg. and end - not needed for averaging bins
     del deviation_seq[-1]
-    bins = list()
-    average = list()
-    l = round(len(deviation_seq)/10) # therd coded pieces for now - should be based on shortest sequence of deviation from neuron 
-    extended = len(deviation_seq) % l # how many last bins shoul be extendend by
-    
-    for i in range(1, 10+1): 
-        bins.append(deviation_seq[i*l-l:i*l])
 
-    last = deviation_seq[i*l:]
-    print(bins)
-    if last:
-        for j in range(-len(last), 0):
-            bins[j-1] += bins[j][:len(last)+j]
-            del bins[j][:len(last)+j]
-        bins[-1] += last
+    identificator = [neuron]
 
-    print(bins)
-    if bins[-1] == []: # shorten truthiness
-        for k in range(-1, -len(bins[0]), -1):
-            bins[k] += bins[k-1][-(len(bins[0])+k):]
-            del bins[k-1][-(len(bins[0])+k):]
-    print(bins)
-    print(len(bins))
-    #average.append(sum(deviation_seq[i*l:]) / len(deviation_seq[i*l:]))
-    # print(average)
-  
-
-
-print(create_bins([0, 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,0]))
+    splitted = numpy.array_split(numpy.array(deviation_seq), 20)
+    bins = [sum(i) / len(i) for i in splitted]
+    identificator.append(bins)
+    return identificator
 
 
 def evaluate_growth_deviation(neuron, x_coords, y_coords):
@@ -114,12 +92,9 @@ def evaluate_growth_deviation(neuron, x_coords, y_coords):
     #prepared_bin = create_bins(deviation)
     #processing to create bins - every neuron divided to equal parts (one bin - average of certain subsequence of heights) for later cmopating - separate function
 
-    #print(deviation)
-    #print(len(deviation))
-    print()
-    print('Neuron', neuron, 'deviation: ', sum(deviation) / len(deviation))
     
-    return deviation
+    identified_bins = create_bins(neuron, deviation)
+    return identified_bins
 
 
 def adjust_graph_axes(x_coords, y_coords, min_x, max_x, min_y, max_y):
@@ -169,14 +144,15 @@ def plotter(neuron):
     plt.plot([x_coords[-1], x_coords[0]], [y_coords[-1], y_coords[0]]) # plot neuron center axis corrected form min/max approach
     #x_coords.clear() # needed for serial evaluation of all neurons
     #y_coords.clear()
+    collection_first = list
+    identified_bins = evaluate_growth_deviation(neuron, x_coords, y_coords)
 
-    deviation = evaluate_growth_deviation(neuron, x_coords, y_coords)
     #comparer(neuron, deviation) # TODO solve and save negative numbers under the central axis - necessary for comparing (?)
     plt.axis([min_x, max_x+20, min_y, max_y+20]) #adjust axes
     #plt.axis([min(x_coords), max(x_coords), min(y_coords), max(y_coords)])
     plt.suptitle('Neuron {}'.format(neuron))
     plt.show()
-
+    return identified_bins
 
 def tester():
     # mock neuron
@@ -205,16 +181,33 @@ def tester():
     
     plt.show()
 
-
-if __name__ == '__main__':
-    '''
-    for i in range(1, 40):
+def collector():
+    collection_first = list()
+    for i in range(1, 4):
         try:
-            plotter(neuron = i)
+            identified_bins = plotter(neuron = i)
+            collection_first.append(identified_bins)
         except:
             print('Number of neuron not found, trying another...')
             continue
-    '''
+    print(collection_first)
+
+
+def collector_test(): # testing collector for spliting file for compare test
+    collection_first = list()
+    for i in range(5, 9):
+        try:
+            identified_bins = plotter(neuron = i)
+            collection_first.append(identified_bins)
+        except:
+            print('Number of neuron not found, trying another...')
+            continue
+    print(collection_first)
+
+if __name__ == '__main__':
+    collector()
+    collector_test()
+
     #plotter(neuron = 1)
     #tester()
     pass
