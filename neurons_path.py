@@ -11,9 +11,9 @@ def open_file_lazy(file):
         next(r)                                 # skip header
         x_crd, y_crd = None, None
         for i in r:                      
-            if i[3] != x_crd and i[4] != y_crd: # filtering duplicities - yielding unique points
+            if i[3] != x_crd and i[4] != y_crd: # filtering duplicities - yielding only unique points
                 x_crd, y_crd = i[3], i[4]
-                yield (i[1], x_crd, y_crd) 
+                yield (i[1], x_crd, y_crd)      # TODO cast to int here
             else:
                 continue
 
@@ -42,15 +42,19 @@ def comparer(neuron, deviation): # 100% match should be with itself in duplicate
         print('ratio: ', ratio, first, other)
 '''
  
-def create_bins(neuron, deviation_seq): # refactor!!!!!!!!!!!! important algorithm, awful implementation, problematic implementation - bad balanced end ...[33, 34, 35, 36], [37]]
+def create_bins(neuron, deviation_seq): # balance of data in bins?
     del deviation_seq[0] # removing zeros form beg. and end - not needed for averaging bins
     del deviation_seq[-1]
 
-    identificator = [neuron]
+    identificator = [neuron]           # index 0 - neuron number
 
-    splitted = numpy.array_split(numpy.array(deviation_seq), 20)
+    splitted = numpy.array_split(numpy.array(deviation_seq), 20) # hard coded split
     bins = [sum(i) / len(i) for i in splitted]
-    identificator.append(bins)
+    min_value = min(bins)
+    max_value = max(bins)
+    identificator.append(min(bins))    # index 1 - min bin value
+    identificator.append(max(bins))    # index 2 - max bin value
+    identificator.append(bins)         # index 3 - all bins of neuron
     return identificator
 
 
@@ -106,7 +110,6 @@ def adjust_graph_axes(x_coords, y_coords, min_x, max_x, min_y, max_y):
 
 
 def normalizer(neuron, l):
-                         # skip header
     x_coords, y_coords = list(), list()
 
     for i in l:                     # obtain all neuron points
@@ -147,11 +150,11 @@ def plotter(neuron):
     collection_first = list
     identified_bins = evaluate_growth_deviation(neuron, x_coords, y_coords)
 
-    #comparer(neuron, deviation) # TODO solve and save negative numbers under the central axis - necessary for comparing (?)
+    #comparer(neuron, deviation) # TODO solve and save negative numbers under the central axis - necessary for comparing (?) #done 
     plt.axis([min_x, max_x+20, min_y, max_y+20]) #adjust axes
     #plt.axis([min(x_coords), max(x_coords), min(y_coords), max(y_coords)])
     plt.suptitle('Neuron {}'.format(neuron))
-    plt.show()
+    #plt.show()
     return identified_bins
 
 def tester():
@@ -181,32 +184,51 @@ def tester():
     
     plt.show()
 
-def collector():
+def collector(): # can be fused with collector test into one generator called with arguments of scaned data and tested data
     collection_first = list()
     for i in range(1, 4):
         try:
             identified_bins = plotter(neuron = i)
-            collection_first.append(identified_bins)
+            yield identified_bins
         except:
             print('Number of neuron not found, trying another...')
             continue
-    print(collection_first)
+
 
 
 def collector_test(): # testing collector for spliting file for compare test
     collection_first = list()
+    percent_bins_comp_sequence = list()
+    
     for i in range(5, 9):
         try:
             identified_bins = plotter(neuron = i)
-            collection_first.append(identified_bins)
+            yield identified_bins
         except:
             print('Number of neuron not found, trying another...')
             continue
-    print(collection_first)
+    
+
+def comparer():                             # TODO need incorporate reverse comparing (+/-)
+
+    for j in collector():
+        min_value_first = j[1]
+        max_value_first = j[2]
+        for k in collector_test():
+            for first, other in zip(j[3], k[3]):
+                #print('neuron pair', j[0], k[0], 'data', first, other)
+                try:
+                    ratio = (other-first)/((other+first)/2)*100 # percentage difference formula
+                    print('neuron pair', j[0], k[0], ratio)
+                except ZeroDivisionError:
+                    pass
+
+    
 
 if __name__ == '__main__':
-    collector()
-    collector_test()
+    #collector()         # first dataset
+    #collector_test()    # second dataset
+    comparer()
 
     #plotter(neuron = 1)
     #tester()
