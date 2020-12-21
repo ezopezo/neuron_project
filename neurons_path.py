@@ -1,6 +1,8 @@
 import csv
 import matplotlib.pyplot as plt
 from math import sqrt, sin, radians, acos, degrees
+from copy import deepcopy
+from statistics import median, mean
 import numpy
 
 
@@ -17,30 +19,6 @@ def open_file_lazy(file):
             else:
                 continue
 
-
-'''
-def comparer(neuron, deviation): # 100% match should be with itself in duplicated file -> (1, 1, 100%)
-    x_coords, y_coords = list(), list()
-    compared_file = open_file_lazy('c2pos5_points.csv')
-    normalized_oth_neur = normalizer(2, compared_file) # first number indicates first neuron in other_file - need to be incremented with respect of missing neurons
-    for i in normalized_oth_neur:
-        if int(i[0]) == 2:
-            x_coords.append(float(i[1]))
-            y_coords.append(float(i[2]))
-
-    other_deviation = evaluate_growth_deviation(3, x_coords, y_coords)
-
-    # normalizing length - i can compare only neurons with equal length
-
-    # comparing
-    print(len(deviation), len(other_deviation))
-    for first, other in zip(deviation, other_deviation): # what about reverse?
-        try:
-            ratio = (other-first)/((other+first)/2)*100 # percentage difference formula
-        except ZeroDivisionError:
-            pass
-        print('ratio: ', ratio, first, other)
-'''
  
 def create_bins(neuron, deviation_seq): # balance of data in bins?
     del deviation_seq[0] # removing zeros form beg. and end - not needed for averaging bins
@@ -48,7 +26,7 @@ def create_bins(neuron, deviation_seq): # balance of data in bins?
 
     identificator = [neuron]           # index 0 - neuron number
 
-    splitted = numpy.array_split(numpy.array(deviation_seq), 20) # hard coded split
+    splitted = numpy.array_split(numpy.array(deviation_seq), 25) # hard coded split
     bins = [sum(i) / len(i) for i in splitted]
     min_value = min(bins)
     max_value = max(bins)
@@ -84,7 +62,7 @@ def evaluate_growth_deviation(neuron, x_coords, y_coords):
         ### TODO need x,y for point where height touches central axis for evaluation what is under and what is above central axis. ### done
         # finding out if is point under the central axis (negative int) of above (positive int) for later comparing of shape.
         #triangle height => deviation of neuron from central axis ## if zero, app zero to list
-        try:
+        try:                                   # deviation may be important data product
             height = 2*triangle_area/c_side
             if height_triangle_y_ax < y:
                 deviation.append(round(height, 10))
@@ -154,7 +132,7 @@ def plotter(neuron):
     plt.axis([min_x, max_x+20, min_y, max_y+20]) #adjust axes
     #plt.axis([min(x_coords), max(x_coords), min(y_coords), max(y_coords)])
     plt.suptitle('Neuron {}'.format(neuron))
-    #plt.show()
+    ##plt.show()
     return identified_bins
 
 def tester():
@@ -184,53 +162,104 @@ def tester():
     
     plt.show()
 
+
 def collector(): # can be fused with collector test into one generator called with arguments of scaned data and tested data
-    collection_first = list()
-    for i in range(1, 4):
+    for i in range(1, 6):
         try:
             identified_bins = plotter(neuron = i)
             yield identified_bins
         except:
-            print('Number of neuron not found, trying another...')
+            #print('Number of neuron not found, trying another...')
             continue
 
 
 
 def collector_test(): # testing collector for spliting file for compare test
-    collection_first = list()
-    percent_bins_comp_sequence = list()
-    
-    for i in range(5, 9):
+    for i in range(4, 10):
         try:
             identified_bins = plotter(neuron = i)
             yield identified_bins
         except:
-            print('Number of neuron not found, trying another...')
+            #print('Number of neuron not found, trying another...')
             continue
-    
 
-def comparer():                             # TODO need incorporate reverse comparing (+/-)
+
+biggest_point_distance = 0
+
+def calculate_each_bin_distance(packed_bins, signature):
+    global biggest_point_distance
+    distance_seq = list()
+
+    distance_seq.append(signature)             # signature pair of neurons for direct [(first_neuron_num, second_neuron_num)]
+    for first, other in packed_bins:
+        if (first < 0 and other < 0) or (first > 0 and other > 0):
+            distance = abs(first - other)
+            distance_seq.append(distance)
+            if biggest_point_distance < distance: # TODO separate to other function
+                biggest_point_distance = distance
+        else:
+            distance = abs(first) + abs(other)
+            distance_seq.append(distance)
+            if biggest_point_distance < distance:
+                biggest_point_distance = distance
+    
+    return distance_seq
+
+
+def iterate_neuron_bin_sets():
+    distance_seq_collection = list()
+    distance_seq_reverse_collection = list()        # instance for reversing values of heights for miror comparation
 
     for j in collector():
-        min_value_first = j[1]
-        max_value_first = j[2]
         for k in collector_test():
-            for first, other in zip(j[3], k[3]):
-                #print('neuron pair', j[0], k[0], 'data', first, other)
-                try:
-                    ratio = (other-first)/((other+first)/2)*100 # percentage difference formula
-                    print('neuron pair', j[0], k[0], ratio)
-                except ZeroDivisionError:
-                    pass
+            signature = tuple((j[0], k[0]))             # signature pair of neurons for direct [(first_neuron_num, second_neuron_num)]
+            reversed_k_neuron = [-i for i in k[3]]      # for mirror comparing
 
+            distance_seq_collection.append(calculate_each_bin_distance(zip(j[3], k[3]), 
+                                                            signature + tuple((1,))))                       # direct comparation
+            distance_seq_reverse_collection.append(calculate_each_bin_distance(zip(j[3], reversed_k_neuron), 
+                                                                    signature + tuple((-1, ))))  # mirror comparation
     
+    return zip(distance_seq_collection, distance_seq_reverse_collection)
+
+
+def filtering_direct__mirror_comparisons():
+    packed_collections = iterate_neuron_bin_sets()
+
+    for direct, mirror in packed_collections:
+        if sum(direct[1:]) > sum(mirror[1:]):
+            yield mirror
+        else:
+            yield direct
+
+
+def calculate_percentage_of_simmilarity_bins(): # [(1, 1), 98.2, 84.6,...]
+    distance_percentage = list()
+    for distance_collection_absolute in filtering_direct__mirror_comparisons():
+        for index, distance in enumerate(distance_collection_absolute):
+            if index == 0:
+                distance_percentage.append(distance) # tuple with neuron identificators
+            else:
+                distance_percentage.append(100 - ((100*distance) / biggest_point_distance))
+
+        yield distance_percentage
+        distance_percentage.clear()
 
 if __name__ == '__main__':
     #collector()         # first dataset
     #collector_test()    # second dataset
-    comparer()
-
-    #plotter(neuron = 1)
+    for i in calculate_percentage_of_simmilarity_bins():
+        print(i)
+    #comparer()
+    '''
+    for i in range(1, 40):
+        try:
+            identified_bins = plotter(neuron = i)
+        except:
+            #print('Number of neuron not found, trying another...')
+            continue
+    '''
+    #plotter(neuron = 9)
     #tester()
     pass
 
