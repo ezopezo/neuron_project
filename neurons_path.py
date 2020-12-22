@@ -19,6 +19,19 @@ def open_file_lazy(file):
             else:
                 continue
 
+def detect_outliers_in_bins(bins): # performing poorly
+
+
+    outliers = list()
+    threshold = 3
+    mean_1 = numpy.mean(bins)
+    std_1 = numpy.std(bins)
+    
+    for y in bins:
+        z_score = (y - mean_1) / std_1 
+        if numpy.abs(z_score) > threshold:
+            outliers.append(y)
+    return outliers
  
 def create_bins(neuron, deviation_seq): # balance of data in bins?
     del deviation_seq[0] # removing zeros form beg. and end - not needed for averaging bins
@@ -26,13 +39,15 @@ def create_bins(neuron, deviation_seq): # balance of data in bins?
 
     identificator = [neuron]           # index 0 - neuron number
 
-    splitted = numpy.array_split(numpy.array(deviation_seq), 25) # hard coded split
-    bins = [sum(i) / len(i) for i in splitted]
-    min_value = min(bins)
-    max_value = max(bins)
+    splitted = numpy.array_split(numpy.array(deviation_seq), 40) # hard coded split TODO mybe initially iterate both files to find lowest num of points and save it to JSON or TXT for overiding hardcoded value and erase it after calculations done?
+    bins = [sum(i) / len(i) for i in splitted]                   # TODO excluding neurons which are represented less than (outlier value) points, for avoiding biased results
+
+    outliers = detect_outliers_in_bins(bins)
+
     identificator.append(min(bins))    # index 1 - min bin value
     identificator.append(max(bins))    # index 2 - max bin value
     identificator.append(bins)         # index 3 - all bins of neuron
+    identificator.append(outliers)     # index 4 - outliers in bins
     return identificator
 
 
@@ -76,7 +91,11 @@ def evaluate_growth_deviation(neuron, x_coords, y_coords):
 
     
     identified_bins = create_bins(neuron, deviation)
+    #print(identified_bins[4])
     return identified_bins
+
+
+
 
 
 def adjust_graph_axes(x_coords, y_coords, min_x, max_x, min_y, max_y):
@@ -125,14 +144,14 @@ def plotter(neuron):
     plt.plot([x_coords[-1], x_coords[0]], [y_coords[-1], y_coords[0]]) # plot neuron center axis corrected form min/max approach
     #x_coords.clear() # needed for serial evaluation of all neurons
     #y_coords.clear()
-    collection_first = list
+
     identified_bins = evaluate_growth_deviation(neuron, x_coords, y_coords)
 
     #comparer(neuron, deviation) # TODO solve and save negative numbers under the central axis - necessary for comparing (?) #done 
     plt.axis([min_x, max_x+20, min_y, max_y+20]) #adjust axes
     #plt.axis([min(x_coords), max(x_coords), min(y_coords), max(y_coords)])
     plt.suptitle('Neuron {}'.format(neuron))
-    ##plt.show()
+    #plt.show() # COMMENT FOR CALCULATIONS
     return identified_bins
 
 def tester():
@@ -162,9 +181,9 @@ def tester():
     
     plt.show()
 
-
+################# calculation of simmilarity
 def collector(): # can be fused with collector test into one generator called with arguments of scaned data and tested data
-    for i in range(1, 6):
+    for i in range(1, 20):
         try:
             identified_bins = plotter(neuron = i)
             yield identified_bins
@@ -175,7 +194,7 @@ def collector(): # can be fused with collector test into one generator called wi
 
 
 def collector_test(): # testing collector for spliting file for compare test
-    for i in range(4, 10):
+    for i in range(20, 40):
         try:
             identified_bins = plotter(neuron = i)
             yield identified_bins
@@ -183,14 +202,13 @@ def collector_test(): # testing collector for spliting file for compare test
             #print('Number of neuron not found, trying another...')
             continue
 
-
 biggest_point_distance = 0
 
-def calculate_each_bin_distance(packed_bins, signature):
+def calculate_each_bin_distance(packed_bins, signature, orientation):
     global biggest_point_distance
     distance_seq = list()
 
-    distance_seq.append(signature)             # signature pair of neurons for direct [(first_neuron_num, second_neuron_num)]
+    #distance_seq.append(signature)             # signature pair of neurons for direct [(first_neuron_num, second_neuron_num, -1, max)]
     for first, other in packed_bins:
         if (first < 0 and other < 0) or (first > 0 and other > 0):
             distance = abs(first - other)
@@ -202,23 +220,21 @@ def calculate_each_bin_distance(packed_bins, signature):
             distance_seq.append(distance)
             if biggest_point_distance < distance:
                 biggest_point_distance = distance
-    
+    distance_seq.insert(0, tuple((signature, orientation)))
     return distance_seq
 
 
 def iterate_neuron_bin_sets():
     distance_seq_collection = list()
-    distance_seq_reverse_collection = list()        # instance for reversing values of heights for miror comparation
+    distance_seq_reverse_collection = list()        # instance for reversing values of heights for mirror comparation
 
     for j in collector():
         for k in collector_test():
             signature = tuple((j[0], k[0]))             # signature pair of neurons for direct [(first_neuron_num, second_neuron_num)]
             reversed_k_neuron = [-i for i in k[3]]      # for mirror comparing
 
-            distance_seq_collection.append(calculate_each_bin_distance(zip(j[3], k[3]), 
-                                                            signature + tuple((1,))))                       # direct comparation
-            distance_seq_reverse_collection.append(calculate_each_bin_distance(zip(j[3], reversed_k_neuron), 
-                                                                    signature + tuple((-1, ))))  # mirror comparation
+            distance_seq_collection.append(calculate_each_bin_distance(zip(j[3], k[3]), signature, orientation=1))                     # direct comparation
+            distance_seq_reverse_collection.append(calculate_each_bin_distance(zip(j[3], reversed_k_neuron), signature, orientation=-1))  # mirror comparation
     
     return zip(distance_seq_collection, distance_seq_reverse_collection)
 
@@ -233,7 +249,7 @@ def filtering_direct__mirror_comparisons():
             yield direct
 
 
-def calculate_percentage_of_simmilarity_bins(): # [(1, 1), 98.2, 84.6,...]
+def calculate_percentage_of_simmilarity_bins(): # [(1, 1, -1), 98.2, 84.6,...] # 
     distance_percentage = list()
     for distance_collection_absolute in filtering_direct__mirror_comparisons():
         for index, distance in enumerate(distance_collection_absolute):
@@ -245,12 +261,40 @@ def calculate_percentage_of_simmilarity_bins(): # [(1, 1), 98.2, 84.6,...]
         yield distance_percentage
         distance_percentage.clear()
 
+
+def calculate_percentage_of_simmilarity(): # [(1, 1, -1), 76.88] 
+    percentage_of_sim = {i[0]: sum(i[1:]) / len(i[1:]) for i in  calculate_percentage_of_simmilarity_bins()}         # {((first neuron, last neuron), orientation), average bins simmilarity}
+    sorted_similarity = {k: v for k, v in sorted(percentage_of_sim.items(), key=lambda item: item[1], reverse=True)} # sorted
+
+    return sorted_similarity
+
+
+def division_neurons_to_quartils():
+    sorted_similarity = calculate_percentage_of_simmilarity()
+    most_similar = max(sorted_similarity.values())
+    less_similar = min(sorted_similarity.values())
+    range_of_avg_percentages = most_similar - less_similar
+
+    for signature, percentage in sorted_similarity.items():
+        if percentage < (range_of_avg_percentages *0.25) + less_similar:
+            print(signature, percentage)
+            pass
+
+
+    #print(most_similar, less_similar)
+
+
+### TODO most oultliers - list of neurons with most outliers from their path
+
+        
+
+
 if __name__ == '__main__':
     #collector()         # first dataset
     #collector_test()    # second dataset
-    for i in calculate_percentage_of_simmilarity_bins():
-        print(i)
-    #comparer()
+
+    division_neurons_to_quartils()
+
     '''
     for i in range(1, 40):
         try:
@@ -260,6 +304,12 @@ if __name__ == '__main__':
             continue
     '''
     #plotter(neuron = 9)
+    #plotter(neuron = 28)
     #tester()
     pass
 
+    ###### OPTIONS 
+    # plot whole group          -> syntax: plot "filename" -all
+    # plot one chosen neuron    -> syntax: plot "filename" "neuron number"
+    # calculate simmilarity     -> syntax: calc_sim "filename" "filename2"
+    # calculate outliers        -> syntax: calc_out "filename"
