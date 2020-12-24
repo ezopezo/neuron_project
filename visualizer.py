@@ -1,5 +1,6 @@
 import csv
 import matplotlib.pyplot as plt
+import argparse
 
 
 def open_file_lazy(file):
@@ -79,11 +80,19 @@ def adjust_graph_axes(x_coords, y_coords, min_x, max_x, min_y, max_y):
     return min_x, max_x, min_y, max_y
 
 
-def plot_group(from_num, to_num, file, pad=20):
-    '''Plot all chosen neurons. '''
+def plot_range_of_neurons(*args, file, mode, pad=20):
+    '''Plot range or group of neurons together. '''
     
-    min_x, max_x, min_y, max_y = 1000,0,1000,0 # hardcoded for graph adjusting
-    for neuron in range(from_num, to_num):
+    if mode == 'range' and len(args) == 2:
+        group = range(*args)
+    elif mode == 'group':
+        group = args
+    else:
+        print('Wrong usage.')
+
+    min_x, max_x, min_y, max_y = float('inf'), float('-inf'), float('inf'), float('-inf') # for graph adjusting
+
+    for neuron in group:
         try:
             neuron, x_crds, y_crds = normalize_point_data(neuron, file, mode='all')
             plt.plot(x_crds, y_crds)
@@ -92,18 +101,27 @@ def plot_group(from_num, to_num, file, pad=20):
         except ValueError:
             print('Not found: ', neuron)
             continue
-    plt.axis([min_x-pad, max_x+pad, min_y-pad, max_y+pad]) #adjust axes with hardocded padding
+
+    plt.axis([min_x-pad, max_x+pad, min_y-pad, max_y+pad]) # adjust axes with provided padding
     title = input("Write graph title: ")
     plt.suptitle(title)
     plt.show()
 
 
 if __name__ == "__main__":
-    # first - vis neuron_num
-    #plotter(1, file='c2pos5_points.csv')
+    def cli_control():
+        parser = argparse.ArgumentParser(description='Providing arguments for selective neuron graph plotting.')
+        parser.add_argument('Filename', help='csv source of data, second column neuron number, third and fourth x,y coordinates required', type=str)
+        parser.add_argument('Mode', help='', type=str)
+        parser.add_argument('Padding', help='', type=int)
 
-    # second - vis all_seq
-    #plot_neurons_sequentially(1, 40, file='c2pos5_points.csv', pad=20)
-     
-    # third - visualisation all_together
-    plot_group(1, 20, file='c2pos5_points.csv', pad=300)
+        args = parser.parse_args()
+
+        # first - vis neuron_num
+        #plotter(1, file='c2pos5_points.csv')
+
+        # second - vis all_seq
+        #plot_neurons_sequentially(1, 40, file='c2pos5_points.csv', pad=20)
+        
+        # third - visualisation group - range or group
+        plot_range_of_neurons(1, file='c2pos5_points.csv', mode='group', pad=200)
