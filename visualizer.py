@@ -3,23 +3,29 @@ import matplotlib.pyplot as plt
 
 
 def open_file_lazy(file):
-    ''' Yielding number of neuron, x and y coordinates. Filtering duplicities of data.'''
+    ''' Yielding number of neuron, x and y coordinates. '''
     with open(file, 'r') as f:
         r = csv.reader(f, delimiter=',')
         next(r)                                 # skip header
-        x_crd, y_crd = None, None
-        for i in r:                      
-            if i[3] != x_crd and i[4] != y_crd: # filtering duplicities - yielding only unique points
-                x_crd, y_crd = i[3], i[4]
-                yield (int(i[1]), float(x_crd), float(y_crd))
-            else:
-                continue
+        yield from r
+        
+
+def filter_point_data(file):
+    '''Filtering point duplicities - yielding only unique points.'''
+
+    x_crd, y_crd = None, None
+    for i in open_file_lazy(file):                      
+        if i[3] != x_crd and i[4] != y_crd: 
+            x_crd, y_crd = i[3], i[4]
+            yield (int(i[1]), float(x_crd), float(y_crd))
+        else:
+            continue
 
 
-def normalize_point_data(neuron, file, mode='all'):
+def normalize_point_data(neuron, file, mode):
     '''Normalizing points for specific graph.'''
 
-    source = open_file_lazy(file)
+    source = filter_point_data(file)
     x_coords, y_coords = list(), list()
 
     for i in source:                        # harvest all neuron points
@@ -33,7 +39,7 @@ def normalize_point_data(neuron, file, mode='all'):
         return neuron, x_coords, y_coords   # return non-adjusted data for ploting all neurons
     
     if mode == 'single':
-        min_x = min(x_coords)               # find min for adjusting
+        min_x = min(x_coords)               # find min of neuron for 0,0 graph adjusting
         min_y = min(y_coords)
 
         x_crds_norm = [j - min_x for j in x_coords]         
@@ -41,17 +47,31 @@ def normalize_point_data(neuron, file, mode='all'):
         return neuron, x_crds_norm, y_crds_norm     # normalized for 0,0 graph axes
 
 
-def plotter(neuron):
-    '''Plot single chosen neuron from dataset. '''
-    neuron, x_crds_norm, y_crds_norm = normalize_point_data(neuron, file='c2pos5_points.csv', mode='single')
+def plotter(neuron, file, pad=20):
+    '''Plot single chosen neuron from dataset or sequence of chosen neurons. '''
+
+    neuron, x_crds_norm, y_crds_norm = normalize_point_data(neuron, file, mode='single')
     plt.plot(x_crds_norm, y_crds_norm)
-    plt.axis([0, max(x_crds_norm)+20, 0, max(y_crds_norm)+20]) # adjust axes - hardcoded outside padding
+    plt.axis([0, max(x_crds_norm)+pad, 0, max(y_crds_norm)+pad]) # adjust axes - hardcoded outside padding
     plt.suptitle('Neuron {}'.format(neuron))
     plt.show()
 
 
+def plot_neurons_sequentially(from_num, to_num, file, pad=20):
+    '''Chose neurons to plot them sequentially. '''
+
+    for neuron in range(from_num, to_num):
+        try:
+            plotter(neuron, file, pad)
+            print('Passed: ', neuron)
+        except ValueError:
+            print('Not found: ', neuron)
+            continue   
+
+
 def adjust_graph_axes(x_coords, y_coords, min_x, max_x, min_y, max_y):
     '''Obtaining min and max values from data for optimal graph framing. '''
+
     if min(x_coords) < min_x: min_x = min(x_coords)
     if max(x_coords) > max_x: max_x = max(x_coords)   
     if min(y_coords) < min_y: min_y = min(y_coords)
@@ -59,19 +79,20 @@ def adjust_graph_axes(x_coords, y_coords, min_x, max_x, min_y, max_y):
     return min_x, max_x, min_y, max_y
 
 
-def plotter_all(file):
-    '''Plot all neurons. '''
+def plot_group(from_num, to_num, file, pad=20):
+    '''Plot all chosen neurons. '''
+    
     min_x, max_x, min_y, max_y = 1000,0,1000,0 # hardcoded for graph adjusting
-    for neuron in range(1, 5000):
+    for neuron in range(from_num, to_num):
         try:
-            neuron, x_crds, y_crds = normalize_point_data(neuron, file)
+            neuron, x_crds, y_crds = normalize_point_data(neuron, file, mode='all')
             plt.plot(x_crds, y_crds)
             min_x, max_x, min_y, max_y = adjust_graph_axes(x_crds, y_crds, min_x, max_x, min_y, max_y)
             print('Sucessfully plotted: ', neuron)
         except ValueError:
             print('Not found: ', neuron)
             continue
-    plt.axis([min_x-20, max_x+20, min_y-20, max_y+20]) #adjust axes with hardocded padding
+    plt.axis([min_x-pad, max_x+pad, min_y-pad, max_y+pad]) #adjust axes with hardocded padding
     title = input("Write graph title: ")
     plt.suptitle(title)
     plt.show()
@@ -79,18 +100,10 @@ def plotter_all(file):
 
 if __name__ == "__main__":
     # first - vis neuron_num
-    
-    #plotter(1)
+    #plotter(1, file='c2pos5_points.csv')
 
     # second - vis all_seq
-    '''
-    for i in range(1, 40):
-        try:
-            plotter(neuron = i)
-            print('Passed: ', i)
-        except ValueError:
-            print('Not found: ', i)
-            continue    
-    '''
+    #plot_neurons_sequentially(1, 40, file='c2pos5_points.csv', pad=20)
+     
     # third - visualisation all_together
-    plotter_all(file='c2pos5_points.csv')
+    plot_group(1, 20, file='c2pos5_points.csv', pad=300)
