@@ -1,8 +1,9 @@
 import csv
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FormatStrFormatter
 import argparse
 
-
+###Yielding, normalizing
 def open_file_lazy(file):
     ''' Yielding number of neuron, x and y coordinates. '''
     with open(file, 'r') as f:
@@ -15,7 +16,7 @@ def filter_point_data(file):
     '''Filtering point duplicities - yielding only unique points.'''
     x_crd, y_crd = None, None
     for data in open_file_lazy(file):                      
-        if data[3] != x_crd and data[4] != y_crd: 
+        if data[3] != x_crd and data[4] != y_crd:  #TODO validation for missing data
             x_crd, y_crd = data[3], data[4]
             yield (int(data[1]), float(x_crd), float(y_crd))          
         else:
@@ -27,7 +28,7 @@ def normalize_point_data(neuron, file, mode):
     source = filter_point_data(file)
     x_crds, y_crds = list(), list()
 
-    for data in source:                        # harvest all neuron points
+    for data in source:                 # harvest all neuron points
         if data[0] == neuron: 
             x_crds.append(data[1])
             y_crds.append(data[2])
@@ -38,15 +39,15 @@ def normalize_point_data(neuron, file, mode):
         return neuron, x_crds, y_crds   # return non-adjusted data for ploting all neurons
     
     if mode == 'single':
-        min_x = min(x_crds)               # find min of neuron for 0,0 graph adjusting
+        min_x = min(x_crds)             # find min of neuron for 0,0 graph adjusting
         min_y = min(y_crds)
 
         x_crds_norm = [x - min_x for x in x_crds]         
         y_crds_norm = [y - min_y for y in y_crds]
         return neuron, x_crds_norm, y_crds_norm     # normalized for 0,0 graph axes
 
-
-def plotter(neuron, file, pad=20):
+### Plotting
+def plot_single_neuron(neuron, file, pad, custom_des):
     '''Plot single chosen neuron from dataset or produce sequence of chosen neurons. '''
     try:
         neuron, x_crds_norm, y_crds_norm = normalize_point_data(neuron, file, mode='single')
@@ -55,17 +56,24 @@ def plotter(neuron, file, pad=20):
         print('Neuron with number ', neuron, 'not presented in file.')
         return False
     
+    
     plt.plot(x_crds_norm, y_crds_norm)
-    plt.axis([0, max(x_crds_norm)+pad, 0, max(y_crds_norm)+pad]) # adjust axes - hardcoded outside padding
-    plt.suptitle('Neuron {}'.format(neuron))
+    plt.axis([0, max(x_crds_norm)+pad, 0, max(y_crds_norm)+pad]) 
+    plt.xlabel('microns')
+    plt.ylabel('microns')
+    if custom_des:
+        title = input("Write graph title: ")
+        plt.suptitle(title)
+    else:
+        plt.suptitle('Neuron {}'.format(neuron))          ### TODO possibility for custom graph name
     plt.show()
 
 
-def plot_neurons_sequentially(from_num, to_num, file, pad=20):
-    '''Invoke plotter for sequential plotting och choosen range of neurons. '''
+def plot_neurons_sequentially(from_num, to_num, file, pad, custom_des):
+    '''Invoke plot_single_neuron for sequential plotting of choosen range of neurons. '''
     for neuron in range(from_num, to_num):
         try:
-            plotter(neuron, file, pad)
+            plot_single_neuron(neuron, file, pad, custom_des)
         except ValueError:
             continue   
 
@@ -86,7 +94,7 @@ def plot_range_of_neurons(*args, file, mode, pad):
     elif mode == 'group':
         group = args
     else:
-        print('Wrong usage.')
+        print('Wrong usage. Check range numbers.')
         return False
 
     min_x, max_x, min_y, max_y = float('inf'), float('-inf'), float('inf'), float('-inf') # for graph adjusting
@@ -102,28 +110,44 @@ def plot_range_of_neurons(*args, file, mode, pad):
             continue
 
     plt.axis([min_x-pad, max_x+pad, min_y-pad, max_y+pad]) # adjust axes with provided padding
+    plt.xlabel('microns')
+    plt.ylabel('microns')
     title = input("Write graph title: ")
     plt.suptitle(title)
     plt.show()
 
 
 def cli_control():
+    '''Command line user interface. '''
     parser = argparse.ArgumentParser(description='Providing arguments for selective neuron graph plotting.')
-    parser.add_argument('-f', '--filename', help='Csv source of data. Structure: second column neuron number, third and fourth x,y coordinates.', type=str, required=True, dest='filename')
-    parser.add_argument('-m', '--mode', help='Options: [ single | burst | range | group ]', type=str, required=True, dest='mode')
-    parser.add_argument('-p', '--padding', help='Adjusting grapth neuron. Default=20', type=int, required=False, dest='padding', default=20)
-    parser.add_argument('-n_first', '--neuron_f', help='Single neuron or first neuron of burst/range/group of neurons plotted.', type=int, required=True, dest='neuron_first')
-    parser.add_argument('-n_other', '--neuron_s', help='Second neuron for burst/range, or arbitrary number of neurons for group mode.', nargs='*', type=int, dest='neuron_second')
+    parser.add_argument('-f', '--filename', 
+                        help='Csv source of data. Structure: second column neuron number, third and fourth x,y coordinates.', 
+                        type=str, required=True, dest='filename')
+    parser.add_argument('-m', '--mode', 
+                        help='Options: [ single | burst | range | group ]', 
+                        type=str, required=True, dest='mode')
+    parser.add_argument('-p', '--padding', 
+                        help='Adjusting grapth neuron. Default=20', 
+                        type=int, required=False, dest='padding', default=20)
+    parser.add_argument('-n_first', '--neuron_first', 
+                        help='Single neuron or first neuron of burst/range/group of neurons plotted.', 
+                        type=int, required=True, dest='neuron_first')
+    parser.add_argument('-n_other', '--neuron_other', 
+                        help='Second neuron for burst/range, or arbitrary number of neurons for group mode.', 
+                        nargs='*', type=int, dest='neuron_second')
+    parser.add_argument('-d', '--description', 
+                        help='Choosing custom description for single and burst mode neuron graphs.', 
+                        type=bool, required=False, dest='description', default=False)
 
     args = parser.parse_args()
 
     if args.mode == 'single':
-        plotter(args.neuron_first, args.filename, args.padding)
+        plot_single_neuron(args.neuron_first, args.filename, args.padding, args.description)
     elif args.mode == 'burst' and args.neuron_second:
-        plot_neurons_sequentially(args.neuron_first, args.neuron_second[0], args.filename, args.padding)
+        plot_neurons_sequentially(args.neuron_first, args.neuron_second[0], args.filename, args.padding, args.description)
     elif args.mode == 'range':
         plot_range_of_neurons(args.neuron_first, args.neuron_second[0], file=args.filename, mode=args.mode, pad=args.padding)
-    elif args.mode == 'group': # fix
+    elif args.mode == 'group':
         args_ = (args.neuron_first, ) + tuple(args.neuron_second)
         plot_range_of_neurons(*args_, file=args.filename, mode=args.mode, pad=args.padding)
     else:
