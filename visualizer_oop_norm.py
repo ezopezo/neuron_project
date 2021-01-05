@@ -1,23 +1,75 @@
+import csv
 import matplotlib.pyplot as plt
 import argparse
-import yielder as yld
+
+###Yielding, normalizing
+def open_file_lazy(file):
+    ''' Yielding number of neuron, x and y coordinates. '''
+    with open(file, 'r') as f:
+        r = csv.reader(f, delimiter=',')
+        next(r)          # skip header
+        yield from r
+        
+
+def filter_point_data(file):
+    '''Filtering point duplicities - yielding only unique points.'''
+    x_crd, y_crd = None, None
+    for data in open_file_lazy(file):                      
+        if data[3] != x_crd and data[4] != y_crd:  #TODO validation for missing data
+            x_crd, y_crd = data[3], data[4]
+            yield (int(data[1]), float(x_crd), float(y_crd))
+        else:
+            continue
+
+class Normalizer:
+    _min_x = float('inf')
+    _min_y = float('inf')
+
+
+    def normalize_point_data(self, neuron, file, mode):
+        '''Normalizing points for specific graph.'''
+        source = filter_point_data(file)
+        x_crds, y_crds = list(), list()
+
+        for data in source:                 # harvest all neuron points
+            if data[0] == neuron: 
+                x_crds.append(data[1])
+                y_crds.append(data[2])
+            elif data[0] > neuron:
+                break
+
+        if mode == 'all':
+            return neuron, x_crds, y_crds   # return non-adjusted data for ploting all neurons
+        
+        if mode == 'single':
+            min_x = min(x_crds)             # find min of neuron for 0,0 graph adjusting
+            min_y = min(y_crds)
+
+            if min_x < _min_x:
+                _min_x = min_x
+
+            if min_y < _min_y:
+                _min_y = min_y
+
+            x_crds_norm = [x - _min_x for x in x_crds]         
+            y_crds_norm = [y - _min_y for y in y_crds]
+            return neuron, x_crds_norm, y_crds_norm     # normalized for 0,0 graph axes
+
+
 
 ### Plotting
 def plot_single_neuron(neuron, file, pad, custom_des):
     '''Plot single chosen neuron from dataset or produce sequence of chosen neurons. '''
-    min_x, max_x, min_y, max_y = float('inf'), float('-inf'), float('inf'), float('-inf')
     try:
-        neuron, x_coords, y_coords = yld.harvest_neuron_points(neuron, file)
-        min_x, max_x, min_y, max_y = yld.find_min_and_max_values(x_coords, y_coords, min_x, max_x, min_y, max_y)
-        neuron, x_crds_norm, y_crds_norm = yld.normalize_point_data(neuron, min_x, min_y, file)
+        neuron, x_crds_norm, y_crds_norm = Normalizer().normalize_point_data(neuron, file, mode='single')
         print('Plotted neuron: ', neuron)
     except ValueError:
         print('Neuron with number ', neuron, 'not presented in file.')
-        return False   
-
-    plt.plot(x_crds_norm, y_crds_norm)
+        return False
     
-    plt.axis([0-pad, max(x_crds_norm)+pad, 0-pad, max(y_crds_norm)+pad]) 
+    
+    plt.plot(x_crds_norm, y_crds_norm)
+    plt.axis([0, max(x_crds_norm)+pad, 0, max(y_crds_norm)+pad]) 
     plt.xlabel('microns')
     plt.ylabel('microns')
     if custom_des:
@@ -30,33 +82,45 @@ def plot_single_neuron(neuron, file, pad, custom_des):
 
 def plot_neurons_sequentially(from_num, to_num, file, pad, custom_des):
     '''Invoke plot_single_neuron for sequential plotting of choosen range of neurons. '''
-    for neuron in range(from_num, to_num+1):
+    for neuron in range(from_num, to_num):
         try:
             plot_single_neuron(neuron, file, pad, custom_des)
         except ValueError:
             continue   
 
 
+def adjust_graph_axes(x_coords, y_coords, min_x, max_x, min_y, max_y):
+    '''Obtaining min and max values from data for optimal graph framing. '''
+    if min(x_coords) < min_x: min_x = min(x_coords)
+    if max(x_coords) > max_x: max_x = max(x_coords)   
+    if min(y_coords) < min_y: min_y = min(y_coords)
+    if max(y_coords) > max_y: max_y = max(y_coords)
+    return min_x, max_x, min_y, max_y
+
+
 def plot_range_of_neurons(*args, file, mode, pad):
     '''Plot range or group of neurons together on graph. '''
-    if mode == 'range': 
-        group = range(*(args[0], args[1] + 1)) # for range including last neuron
+    if mode == 'range':
+        group = range(*args)
     elif mode == 'group':
         group = args
     else:
         print('Wrong usage. Check range numbers.')
         return False
 
-    min_x, max_x, min_y, max_y = yld.iterate_for_min_and_max_values(group, file)
+    min_x, max_x, min_y, max_y = float('inf'), float('-inf'), float('inf'), float('-inf') # for graph adjusting
 
     for neuron in group:
         try:
-            _, x_crds, y_crds = yld.normalize_point_data(neuron, min_x, min_y, file)
+            neuron, x_crds, y_crds = normalize_point_data(neuron, file, mode='all')
             plt.plot(x_crds, y_crds)
+            min_x, max_x, min_y, max_y = adjust_graph_axes(x_crds, y_crds, min_x, max_x, min_y, max_y)
+            print('Plotted neuron: ', neuron)
         except ValueError:
+            print('Not found: ', neuron)
             continue
 
-    plt.axis([0-pad, max_x-min_x+pad, 0-pad, max_y-min_y+pad]) # adjust axes with provided padding
+    plt.axis([min_x-pad, max_x+pad, min_y-pad, max_y+pad]) # adjust axes with provided padding
     plt.xlabel('microns')
     plt.ylabel('microns')
     title_ = input("Write graph title: ")
@@ -66,50 +130,49 @@ def plot_range_of_neurons(*args, file, mode, pad):
 
 def plot_both_groups_neurons(*args, file, file2, mode, pad, custom_des):
     '''Plotting neurons from two files for comparation. '''
-    if mode == 'range' and len(args[0]) == 2 and len(args[1]) == 2:
-        first_source = (args[0][0], tuple(args[0])[1] + 1) # for range including last neuron
-        second_source = (args[1][0], tuple(args[1])[1] + 1)
-        group = range(*first_source), range(*second_source)
+    if mode == 'range':
+        group = range(*args[0]), range(*args[1])
     elif mode == 'group':
         group = args
     else:
         print('Wrong usage. Check range numbers.')
         return False
-    
-    _, axs = plt.subplots(1, 2, sharex=True, sharey=True)
-    min_x, min_y = float('inf'), float('inf')
-    max_x_, max_y_ = float('-inf'), float('-inf')
-        
-    for number, file_name in enumerate((file, file2)):
-        min_x, _, min_y, _ = yld.iterate_for_min_and_max_values(group[number], file)
+
+    min_x, max_x, min_y, max_y = float('inf'), float('-inf'), float('inf'), float('-inf') # for graph adjusting
+    _, axs = plt.subplots(1, 2, sharey=True, sharex=True)
+    plt.ylabel('microns')
+    number = 0
+
+    for file_name in file, file2:
         for neuron in group[number]:
             try:
-                neuron, x_crds, y_crds = yld.normalize_point_data(neuron, min_x, min_y, file_name)
+                neuron, x_crds, y_crds = normalize_point_data(neuron, file_name, mode='all')
                 axs[number].plot(x_crds, y_crds)
-                max_x_ = max(x_crds) if max(x_crds) > max_x_ else max_x_ # max needed from normalized data
-                max_y_ = max(y_crds) if max(y_crds) > max_y_ else max_y_    
+                min_x, max_x, min_y, max_y = adjust_graph_axes(x_crds, y_crds, min_x, max_x, min_y, max_y)
+                print('Plotted neuron:', neuron, 'from file: ', file_name)
             except ValueError:
+                print('Not found:', neuron, 'in file: ', file_name)
                 continue
 
         if custom_des:
-            name = input('Write description for ' + str(number+1) + '. group of neurons: ')
+            name = input('Write description for ' + str(number+1) + 'group of neurons: ')
             axs[number].set_title(name)
         else:
             axs[number].set_title(file_name)
 
-        if number == 0: axs[number].set(ylabel = 'microns', xlabel = 'microns') # exclude y label for second graph
-        else:           axs[number].set(xlabel = 'microns')
+        if number == 0:
+            axs[number].set(ylabel = 'microns', xlabel = 'microns')
+        else: 
+            axs[number].set(xlabel = 'microns')
             
-
         plt.sca(axs[0])
+        number += 1
 
-        min_x, min_y = float('inf'), float('inf')
-
-    plt.axis([0-pad, max_x_+pad, 0-pad, max_y_+pad]) # adjust axes with provided padding
+    plt.axis([min_x-pad, max_x+pad, min_y-pad, max_y+pad]) # adjust axes with provided padding
     plt.show()
 
 
-def cmd_control():
+def cli_control():
     '''Command line user interface. '''
     parser = argparse.ArgumentParser(description='Providing arguments for selective neuron graph plotting.')
     parser.add_argument('-f', '--filename', 
@@ -162,5 +225,5 @@ def cmd_control():
 
 
 if __name__ == "__main__":
-    cmd_control()
+    cli_control()
 #c2pos5_points.csv

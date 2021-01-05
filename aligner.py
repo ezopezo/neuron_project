@@ -4,24 +4,10 @@ from math import sqrt, sin, radians, acos, degrees
 from copy import deepcopy
 from statistics import median, mean
 import numpy
+import visualizer as vs
 
 
-def open_file_lazy(file):
-    ''' Yielding number of neuron, x and y coordinates. Filtering duplicities of data'''
-    with open(file, 'r') as f:
-        r = csv.reader(f, delimiter=',')
-        next(r)                                 # skip header
-        x_crd, y_crd = None, None
-        for i in r:                      
-            if i[3] != x_crd and i[4] != y_crd: # filtering duplicities - yielding only unique points
-                x_crd, y_crd = i[3], i[4]
-                yield (i[1], x_crd, y_crd)      # TODO cast to int here
-            else:
-                continue
-
-def detect_outliers_in_bins(bins): # performing poorly
-
-
+def detect_outliers_in_deviation(bins): # performing poorly on bins also on deviations
     outliers = list()
     threshold = 3
     mean_1 = numpy.mean(bins)
@@ -31,7 +17,8 @@ def detect_outliers_in_bins(bins): # performing poorly
         z_score = (y - mean_1) / std_1 
         if numpy.abs(z_score) > threshold:
             outliers.append(y)
-    return outliers
+    #print(outliers)
+
  
 def create_bins(neuron, deviation_seq): # balance of data in bins?
     del deviation_seq[0] # removing zeros form beg. and end - not needed for averaging bins
@@ -39,15 +26,13 @@ def create_bins(neuron, deviation_seq): # balance of data in bins?
 
     identificator = [neuron]           # index 0 - neuron number
 
-    splitted = numpy.array_split(numpy.array(deviation_seq), 40) # hard coded split TODO mybe initially iterate both files to find lowest num of points and save it to JSON or TXT for overiding hardcoded value and erase it after calculations done?
+    splitted = numpy.array_split(numpy.array(deviation_seq), 30) # hard coded split TODO mybe initially iterate both files to find lowest num of points and save it to JSON or TXT for overiding hardcoded value and erase it after calculations done?
     bins = [sum(i) / len(i) for i in splitted]                   # TODO excluding neurons which are represented less than (outlier value) points, for avoiding biased results
 
-    outliers = detect_outliers_in_bins(bins)
 
     identificator.append(min(bins))    # index 1 - min bin value
     identificator.append(max(bins))    # index 2 - max bin value
     identificator.append(bins)         # index 3 - all bins of neuron
-    identificator.append(outliers)     # index 4 - outliers in bins
     return identificator
 
 
@@ -61,7 +46,6 @@ def evaluate_growth_deviation(neuron, x_coords, y_coords):
     angle_a = radians(90) - angle_b
     
     deviation = list()
-    #print(degrees(angle_a), degrees(angle_b))
 
     for x, y in zip(x_coords, y_coords): # for every point of neuron avoiding duplicities in 
         # triangle for countuing missing coordinates on center neuron axis
@@ -86,122 +70,83 @@ def evaluate_growth_deviation(neuron, x_coords, y_coords):
         except ZeroDivisionError:
             deviation.append(0)
 
-    #prepared_bin = create_bins(deviation)
-    #processing to create bins - every neuron divided to equal parts (one bin - average of certain subsequence of heights) for later cmopating - separate function
-
-    
+   
+    #detect_outliers_in_deviation(deviation)
+     #processing to create bins - every neuron divided to equal parts (one bin - average of certain subsequence of heights) for later cmopating - separate function
     identified_bins = create_bins(neuron, deviation)
-    #print(identified_bins[4])
-    return identified_bins
-
-
-
-
-
-def adjust_graph_axes(x_coords, y_coords, min_x, max_x, min_y, max_y):
-    if x_coords < min_x: min_x = x_coords
-    if x_coords > max_x: max_x = x_coords    
-    if y_coords < min_y: min_y = y_coords
-    if y_coords > max_y: max_y = y_coords
-    return min_x, max_x, min_y, max_y
-
-
-def normalizer(neuron, l):
-    x_coords, y_coords = list(), list()
-
-    for i in l:                     # obtain all neuron points
-        if int(i[0]) == neuron: 
-            x_coords.append(float(i[1]))
-            y_coords.append(float(i[2]))
-        elif int(i[0]) == neuron+1:
-            break
-
-    min_x = min(x_coords)           # find min for adjusting
-    min_y = min(y_coords)
-
-    for j, k in zip(x_coords, y_coords):
-        x_crds_norm = j - min_x     # adjusting and yielding normalized points for 0,0 graph root
-        y_crds_norm = k - min_y
-        yield (neuron, x_crds_norm, y_crds_norm)
-
+    #print(identified_bins[4]) # outliers
+    return deviation
 
 
 def plotter(neuron):
-    l = open_file_lazy('c2pos5_points.csv')
-    min_x, max_x, min_y, max_y = 1000,0,1000,0 # min and max axes # may be None - defined for masking with adjus_graph_axes() function
-    x_coords, y_coords = list(), list()
-
-    normalized_data = normalizer(neuron, l)
-
-    for i in normalized_data:
-        
-        if int(i[0]) == neuron:
-            x_coords.append(float(i[1]))
-            y_coords.append(float(i[2]))
-            min_x, max_x, min_y, max_y = adjust_graph_axes(float(i[1]), float(i[2]), min_x, max_x, min_y, max_y)
-      
-    plt.plot(x_coords, y_coords)
-    plt.plot([x_coords[-1], x_coords[0]], [y_coords[-1], y_coords[0]]) # plot neuron center axis corrected form min/max approach
-    #x_coords.clear() # needed for serial evaluation of all neurons
-    #y_coords.clear()
-
-    identified_bins = evaluate_growth_deviation(neuron, x_coords, y_coords)
-
-    #comparer(neuron, deviation) # TODO solve and save negative numbers under the central axis - necessary for comparing (?) #done 
-    plt.axis([min_x, max_x+20, min_y, max_y+20]) #adjust axes
-    #plt.axis([min(x_coords), max(x_coords), min(y_coords), max(y_coords)])
-    plt.suptitle('Neuron {}'.format(neuron))
-    #plt.show() # COMMENT FOR CALCULATIONS
+    normalized_data = vs.normalize_point_data(neuron, file = 'c2pos5_points.csv', mode='single')
+    identified_bins = evaluate_growth_deviation(normalized_data[0], normalized_data[1], normalized_data[2])
     return identified_bins
 
-def tester():
-    # mock neuron
-    x_crds = [12, 8, 2]
-    y_crds = [15, 4, 2]
-
-    x_crds_norm = list()
-    y_crds_norm = list()
-
-    min_x = min(x_crds)
-    max_x = max(x_crds)
-    min_y = min(y_crds)
-    max_y = max(y_crds)
-    neuron = 3
-
-    for x, y in zip(x_crds, y_crds): # normalisation for 0,0 starting graph
-        x_crds_norm.append(x - min_x)
-        y_crds_norm.append(y - min_y)
-
-    plt.plot(x_crds_norm, y_crds_norm)
-    plt.plot([0, x_crds_norm[0]], [0, y_crds_norm[0]])
-    evaluate_growth_deviation(neuron, x_crds_norm, y_crds_norm)
-    plt.plot([6, 6],[7.8, 2]) ## xx yy #hard coded for now
-    plt.plot([6, 1.53],[2, 2]) ## xx yy
-    plt.axis([0, x_crds_norm[0], 0, y_crds_norm[0]])
-    
-    plt.show()
 
 ################# calculation of simmilarity
 def collector(): # can be fused with collector test into one generator called with arguments of scaned data and tested data
     for i in range(1, 20):
         try:
             identified_bins = plotter(neuron = i)
-            yield identified_bins
-        except:
-            #print('Number of neuron not found, trying another...')
-            continue
 
+            yield identified_bins
+        except ValueError: # catching all for now
+            continue
 
 
 def collector_test(): # testing collector for spliting file for compare test
-    for i in range(20, 40):
+    for j in range(20, 40):
         try:
-            identified_bins = plotter(neuron = i)
+            identified_bins = plotter(neuron = j)
             yield identified_bins
-        except:
-            #print('Number of neuron not found, trying another...')
+        except ValueError:
             continue
 
+def create_boxplots_from_collections():
+    first_collection = list()
+    second_collection = list()
+
+    for i in collector():
+        for k in i[3]:
+            first_collection.append(abs(k))
+
+    for j in collector_test():
+        for l in j[3]:
+            second_collection.append(abs(l))
+
+    data = [first_collection, second_collection]
+
+    plt.boxplot(data) 
+    plt.show() 
+
+#create_boxplots_from_collections()
+
+def create_boxplots_from_separate_neurons():
+    first_set_of_neurons = list()
+    other_set_of_neurons = list()
+
+    for i in collector():
+        first_set_of_neurons.append(i)
+    
+    for j in collector_test():
+        other_set_of_neurons.append(j)
+
+    fig, axs = plt.subplots(1, 2)
+
+
+    axs[0].boxplot(first_set_of_neurons)
+    axs[0].set_title('first_group')
+
+    axs[1].boxplot(other_set_of_neurons)
+    axs[1].set_title('other_group')
+
+    plt.show()
+
+create_boxplots_from_separate_neurons()
+
+
+########## comparation each - comformity, more sets.
 biggest_point_distance = 0
 
 def calculate_each_bin_distance(packed_bins, signature, orientation):
@@ -262,10 +207,16 @@ def calculate_percentage_of_simmilarity_bins(): # [(1, 1, -1), 98.2, 84.6,...] #
         distance_percentage.clear()
 
 
-def calculate_percentage_of_simmilarity(): # [(1, 1, -1), 76.88] 
-    percentage_of_sim = {i[0]: sum(i[1:]) / len(i[1:]) for i in  calculate_percentage_of_simmilarity_bins()}         # {((first neuron, last neuron), orientation), average bins simmilarity}
-    sorted_similarity = {k: v for k, v in sorted(percentage_of_sim.items(), key=lambda item: item[1], reverse=True)} # sorted
+def pooled_similarity_of_neuron_with_other_group(percentage_of_sim):
+    for signature, percentage in percentage_of_sim.items():
+        #print(signature, percentage)
+        pass
 
+
+def calculate_percentage_of_simmilarity(): # [(1, 1, -1), 76.88] 
+    percentage_of_sim = {i[0]: sum(i[1:]) / len(i[1:]) for i in calculate_percentage_of_simmilarity_bins()}         # {((first neuron, last neuron), orientation), average bins simmilarity}
+    pooled_similarity_of_neuron_with_other_group(percentage_of_sim)
+    sorted_similarity = {k: v for k, v in sorted(percentage_of_sim.items(), key=lambda item: item[1], reverse=True)} # sorted
     return sorted_similarity
 
 
@@ -276,40 +227,69 @@ def division_neurons_to_quartils():
     range_of_avg_percentages = most_similar - less_similar
 
     for signature, percentage in sorted_similarity.items():
-        if percentage < (range_of_avg_percentages *0.25) + less_similar:
-            print(signature, percentage)
-            pass
+        #if percentage < (range_of_avg_percentages *0.25) + less_similar:
+        #print(signature, percentage)
+        pass
 
 
     #print(most_similar, less_similar)
 
 
-### TODO most oultliers - list of neurons with most outliers from their path
+### TODO most oultliers - list of neurons with most outliers from their path # done thinking about outliers per 10 points
 
-        
+def tester():
+    # mock neuron
+    x_crds = [12, 8, 2]
+    y_crds = [15, 4, 2]
+
+    x_crds_norm = list()
+    y_crds_norm = list()
+
+    min_x = min(x_crds)
+    max_x = max(x_crds)
+    min_y = min(y_crds)
+    max_y = max(y_crds)
+    neuron = 3
+
+    for x, y in zip(x_crds, y_crds): # normalisation for 0,0 starting graph
+        x_crds_norm.append(x - min_x)
+        y_crds_norm.append(y - min_y)
+
+    plt.plot(x_crds_norm, y_crds_norm)
+    plt.plot([0, x_crds_norm[0]], [0, y_crds_norm[0]])
+    evaluate_growth_deviation(neuron, x_crds_norm, y_crds_norm)
+    plt.plot([6, 6],[7.8, 2]) ## xx yy #hard coded for now
+    plt.plot([6, 1.53],[2, 2]) ## xx yy
+    plt.axis([0, x_crds_norm[0], 0, y_crds_norm[0]])
+    
+    plt.show()       
 
 
 if __name__ == '__main__':
     #collector()         # first dataset
     #collector_test()    # second dataset
 
-    division_neurons_to_quartils()
+    #create_boxplots_from_collections()
 
-    '''
-    for i in range(1, 40):
-        try:
-            identified_bins = plotter(neuron = i)
-        except:
-            #print('Number of neuron not found, trying another...')
-            continue
-    '''
-    #plotter(neuron = 9)
-    #plotter(neuron = 28)
+    #division_neurons_to_quartils()
+
+    def diagnostic():
+        for i in range(1, 40):
+            try:
+                identified_bins = plotter(neuron = i)
+                print('Passed: ', i)
+            except ZeroDivisionError: # TODO  track zero division error
+                print('Zero div error: ', i)
+                continue
+            except ValueError:
+                print('Not found', i)
+                continue
+
+    #diagnostic()
+
+    #plotter(neuron = 5)
+    #plotter(neuron = 38)
     #tester()
     pass
 
-    ###### OPTIONS 
-    # plot whole group          -> syntax: plot "filename" -all
-    # plot one chosen neuron    -> syntax: plot "filename" "neuron number"
-    # calculate simmilarity     -> syntax: calc_sim "filename" "filename2"
-    # calculate outliers        -> syntax: calc_out "filename"
+
