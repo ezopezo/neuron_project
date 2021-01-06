@@ -6,22 +6,49 @@ def open_file_lazy(file):
     ''' Yielding number of neuron, x and y coordinates. '''
     with open(file, 'r') as f:
         r = csv.reader(f, delimiter=',')
-        next(r)          # skip header
         yield from r
 
 
 def filter_point_data(file):
     '''Filtering point duplicities - yielding only unique points.'''
     x_crd, y_crd = None, None
-    for data in open_file_lazy(file):                      
-        if data[3] != x_crd and data[4] != y_crd:  #TODO validation for missing data
-            x_crd, y_crd = data[3], data[4]
-            if __name__ == '__main__': #if yielder used directly yield all data
-                yield data
-            else:
+    f = open_file_lazy(file)
+    next(f) # skip header
+    for data in f:
+        try:                      
+            if data[3] != x_crd and data[4] != y_crd:
+                x_crd, y_crd = data[3], data[4]
                 yield (int(data[1]), float(x_crd), float(y_crd))
-        else:
+            else:
+                continue
+        except ValueError: # invalid_points (bad type) are silenced for neuron continuity
             continue
+    
+
+
+def filter_point_data_for_csv(file, duplicities):
+    '''Filtering point duplicities - yielding only unique points.'''
+    x_crd, y_crd = None, None
+    f = open_file_lazy(file)
+    yield next(f)
+    for data in f:                      
+        if not duplicities:
+            if data[3] != x_crd and data[4] != y_crd:
+                x_crd, y_crd = data[3], data[4]
+                yield   (data[0], data[1], data[2], 
+                        float(x_crd), float(y_crd), 
+                        data[5], data[6], data[7], data[8],
+                        data[9], data[10], data[11], 
+                        data[12], data[13])
+            else:
+                continue
+        else:
+            yield   (data[0], data[1], data[2], 
+                    float(data[3]), float(data[4]), 
+                    data[5], data[6], data[7], data[8],
+                    data[9], data[10], data[11], 
+                    data[12], data[13])
+
 
 
 def harvest_neuron_points(neuron, file):
@@ -65,7 +92,7 @@ def iterate_for_min_and_max_values(neur_group, file):
         try:
             neuron, x_coords, y_coords = harvest_neuron_points(neuron, file)
             min_x, max_x, min_y, max_y = find_min_and_max_values(x_coords, y_coords, min_x, max_x, min_y, max_y)
-            print('Plotted neuron:', neuron, 'from file:', file)
+            print('Processed neuron:', neuron, 'from file:', file)
         except ValueError:
             print('Neuron not found:', neuron, 'in file:', file)
             continue
@@ -73,12 +100,44 @@ def iterate_for_min_and_max_values(neur_group, file):
     return min_x, max_x, min_y, max_y
 
 
-###Saving to new file
-def save_normalized_and_deduplicated_data_to_csv(file):
-    with open(file, 'w', newline='') as f:
-        spamwriter = csv.writer(f, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
-        for i in filter_point_data(file):
-            spamwriter.writerow(i)
+### Processing data
+def save_normalized_and_deduplicated_data_to_csv(read_file, write_file, last, duplicities):
+    '''Saving deduplicted and normalized data to new file. '''
+    with open(write_file, 'w', newline='') as f:
+        data = filter_point_data_for_csv(read_file, duplicities)
+        header = next(data)
+        writer = csv.writer(f, delimiter=',', quoting=csv.QUOTE_MINIMAL)
+        writer.writerow(header)
+        for neuron in range(1, last+1):
+            min_x, _, min_y, _ = iterate_for_min_and_max_values((neuron, ), read_file)
+            for i in data:
+                if int(i[1]) == neuron:
+                    writer.writerow([*i[:3], round(i[3]-min_x, 6), round(i[4]-min_y, 6), *i[5:]])
+                else:
+                    break
+
+
+def cmd_control():
+    '''Command line user interface. '''
+    parser = argparse.ArgumentParser(description='Providing arguments for normalizing neuron point data.')
+    parser.add_argument('-fs', '--filename_source', 
+                        help='Csv source of data. Structure: second column neuron number, third and fourth x,y coordinates.', 
+                        type=str, required=True, dest='source')
+    parser.add_argument('-fo', '--filename_output', 
+                        help='Csv output.', 
+                        type=str, required=True, dest='output')
+    parser.add_argument('-n', '--count_of_neurons', 
+                        help='Providing number of processed neurons in file', 
+                        type=int, required=True, dest='count')
+    parser.add_argument('-dup', '--allow_duplicities', 
+                        help='Providing number of processed neurons in file', 
+                        type=int, required=False, dest='duplicities', default=False)
+    args = parser.parse_args()
+
+    save_normalized_and_deduplicated_data_to_csv(args.source, args.output, args.count, args.duplicities)
+
 
 if __name__ == '__main__':
-    save_normalized_and_deduplicated_data_to_csv('w.csv')
+    cmd_control()
+
+# 'c2pos5_points.csv'

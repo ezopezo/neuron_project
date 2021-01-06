@@ -116,7 +116,7 @@ def cmd_control():
                         help='Csv source of data. Structure: second column neuron number, third and fourth x,y coordinates.', 
                         type=str, required=True, dest='filename')
     parser.add_argument('-f2', '--filename2', 
-                        help='Secnod csv source of data. Structure: second column neuron number, third and fourth x,y coordinates.', 
+                        help='Second csv source of data. Structure: second column neuron number, third and fourth x,y coordinates.', 
                         type=str, required=False, dest='filename2')
                         ####                    
     parser.add_argument('-n', '--neuron_first', 
@@ -163,4 +163,5 @@ def cmd_control():
 
 if __name__ == "__main__":
     cmd_control()
-#c2pos5_points.csv
+
+    #c2pos5_points.csv
