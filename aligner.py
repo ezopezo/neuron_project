@@ -6,6 +6,7 @@ from statistics import median, mean
 import numpy
 import visualizer as vs
 
+# in progress
 
 def detect_outliers_in_deviation(bins): # performing poorly on bins also on deviations
     outliers = list()
