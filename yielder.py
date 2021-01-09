@@ -13,29 +13,31 @@ def filter_point_data(file):
     '''Filtering point duplicities - yielding only unique points.'''
     x_crd, y_crd = None, None
     f = open_file_lazy(file)
-    next(f) # skip header
+    next(f)                     # skip header
+
     for data in f:
         try:                      
-            if data[3] != x_crd and data[4] != y_crd:
+            if data[3] != x_crd or data[4] != y_crd: # at least one coord not equal in previous member in point
                 x_crd, y_crd = data[3], data[4]
                 yield (int(data[1]), float(x_crd), float(y_crd))
             else:
                 continue
-        except ValueError: # invalid_points (bad type) are silenced for neuron continuity
+        except ValueError:      # invalid_points (bad type) are silenced for neuron continuity
             continue
     
 
-
-def filter_point_data_for_csv(file, duplicities):
-    '''Filtering point duplicities - yielding only unique points.'''
+def normalize_point_data_for_csv(file, duplicities):
+    '''Nromalizing and optionally filtering data for output csv file. '''
     x_crd, y_crd = None, None
     f = open_file_lazy(file)
-    yield next(f)
-    for data in f:                      
+
+    yield next(f)               # yield header for csv file
+
+    for data in f:      
         if not duplicities:
-            if data[3] != x_crd and data[4] != y_crd:
+            if data[3] != x_crd or data[4] != y_crd:
                 x_crd, y_crd = data[3], data[4]
-                yield   (data[0], data[1], data[2], 
+                yield   (data[0], int(data[1]), data[2], # yield deduplicated
                         float(x_crd), float(y_crd), 
                         data[5], data[6], data[7], data[8],
                         data[9], data[10], data[11], 
@@ -43,7 +45,7 @@ def filter_point_data_for_csv(file, duplicities):
             else:
                 continue
         else:
-            yield   (data[0], data[1], data[2], 
+            yield   (data[0], int(data[1]), data[2], # yield all
                     float(data[3]), float(data[4]), 
                     data[5], data[6], data[7], data[8],
                     data[9], data[10], data[11], 
@@ -67,7 +69,7 @@ def harvest_neuron_points(neuron, file):
 
 
 def find_min_and_max_values(x_coords, y_coords, min_x, max_x, min_y, max_y):
-    '''Obtaining min and max values from data for optimal graph framing. '''
+    '''Obtaining min and max values from single neuron for optimal graph framing. '''
     if min(x_coords) < min_x: min_x = min(x_coords)
     if max(x_coords) > max_x: max_x = max(x_coords)   
     if min(y_coords) < min_y: min_y = min(y_coords)
@@ -85,7 +87,8 @@ def normalize_point_data(neuron, min_x, min_y, file):
 
 
 def iterate_for_min_and_max_values(neur_group, file):
-    '''Obtaining min and max values from neuron group for optimal graph framing. '''
+    '''Obtaining min and max values from neuron group 
+    for optimal graph framing or normalizing data for csv. '''
     min_x, max_x, min_y, max_y = float('inf'), float('-inf'), float('inf'), float('-inf')
 
     for neuron in neur_group:
@@ -101,29 +104,31 @@ def iterate_for_min_and_max_values(neur_group, file):
 
 
 ### Processing data
-def save_normalized_and_deduplicated_data_to_csv(read_file, write_file, last, duplicities):
+def save_normalized_data_to_csv(read_file, write_file, last_written_neuron, duplicities):
     '''Saving deduplicted and normalized data to new file. '''
     with open(write_file, 'w', newline='') as f:
-        data = filter_point_data_for_csv(read_file, duplicities)
+        data = normalize_point_data_for_csv(read_file, duplicities)
         header = next(data)
         writer = csv.writer(f, delimiter=',', quoting=csv.QUOTE_MINIMAL)
         writer.writerow(header)
-        for neuron in range(1, last+1):
+
+        for neuron in range(1, last_written_neuron+1):
             min_x, _, min_y, _ = iterate_for_min_and_max_values((neuron, ), read_file)
-            for i in data:
-                if int(i[1]) == neuron:
-                    writer.writerow([*i[:3], round(i[3]-min_x, 6), round(i[4]-min_y, 6), *i[5:]])
+            
+            for row in data:
+                if int(row[1]) == neuron:
+                    writer.writerow([*row[:3], round(row[3]-min_x, 6), round(row[4]-min_y, 6), *row[5:]])
                 else:
                     break
 
 
 def cmd_control():
     '''Command line user interface. '''
-    parser = argparse.ArgumentParser(description='Providing arguments for normalizing neuron point data.')
-    parser.add_argument('-fs', '--filename_source', 
+    parser = argparse.ArgumentParser(description='Providing arguments for normalizing neuron point data for csv file output.')
+    parser.add_argument('-fin', '--filename_input', 
                         help='Csv source of data. Structure: second column neuron number, third and fourth x,y coordinates.', 
                         type=str, required=True, dest='source')
-    parser.add_argument('-fo', '--filename_output', 
+    parser.add_argument('-fout', '--filename_output', 
                         help='Csv output.', 
                         type=str, required=True, dest='output')
     parser.add_argument('-n', '--count_of_neurons', 
@@ -131,13 +136,11 @@ def cmd_control():
                         type=int, required=True, dest='count')
     parser.add_argument('-dup', '--allow_duplicities', 
                         help='Providing number of processed neurons in file', 
-                        type=int, required=False, dest='duplicities', default=False)
+                        type=bool, required=False, dest='duplicities', default=False) # implicitlly not allowing dulicities
     args = parser.parse_args()
 
-    save_normalized_and_deduplicated_data_to_csv(args.source, args.output, args.count, args.duplicities)
+    save_normalized_data_to_csv(args.source, args.output, args.count, args.duplicities)
 
 
 if __name__ == '__main__':
     cmd_control()
-
-# 'c2pos5_points.csv'

@@ -2,17 +2,19 @@ import matplotlib.pyplot as plt
 import argparse
 import yielder as yld
 
+
+
 ### Plotting
 def plot_single_neuron(neuron, file, pad, custom_des):
     '''Plot single chosen neuron from dataset or produce sequence of chosen neurons. '''
-    min_x, max_x, min_y, max_y = float('inf'), float('-inf'), float('inf'), float('-inf')
+    min_x, max_x, min_y, max_y = float('inf'), float('-inf'), float('inf'), float('-inf') # for graph adjusting
     try:
         neuron, x_coords, y_coords = yld.harvest_neuron_points(neuron, file)
-        min_x, max_x, min_y, max_y = yld.find_min_and_max_values(x_coords, y_coords, min_x, max_x, min_y, max_y)
+        min_x, _, min_y, _ = yld.find_min_and_max_values(x_coords, y_coords, min_x, max_x, min_y, max_y)
         neuron, x_crds_norm, y_crds_norm = yld.normalize_point_data(neuron, min_x, min_y, file)
-        print('Plotted neuron: ', neuron)
+        print('Processed neuron:', neuron, 'from file:', file)
     except ValueError:
-        print('Neuron with number ', neuron, 'not presented in file.')
+        print('Neuron not found:', neuron, 'in file:', file)
         return False   
 
     plt.plot(x_crds_norm, y_crds_norm)
@@ -56,7 +58,7 @@ def plot_range_of_neurons(*args, file, mode, pad):
         except ValueError:
             continue
 
-    plt.axis([0-pad, max_x-min_x+pad, 0-pad, max_y-min_y+pad]) # adjust axes with provided padding
+    plt.axis([0-pad, max_x-min_x+pad, 0-pad, max_y-min_y+pad]) # adjust axes with provided padding + data are non-normalized (max-min)
     plt.xlabel('microns')
     plt.ylabel('microns')
     title_ = input("Write graph title: ")
@@ -86,7 +88,7 @@ def plot_both_groups_neurons(*args, file, file2, mode, pad, custom_des):
             try:
                 neuron, x_crds, y_crds = yld.normalize_point_data(neuron, min_x, min_y, file_name)
                 axs[number].plot(x_crds, y_crds)
-                max_x_ = max(x_crds) if max(x_crds) > max_x_ else max_x_ # max needed from normalized data
+                max_x_ = max(x_crds) if max(x_crds) > max_x_ else max_x_        # max needed from semi-normalized data
                 max_y_ = max(y_crds) if max(y_crds) > max_y_ else max_y_    
             except ValueError:
                 continue
@@ -99,13 +101,11 @@ def plot_both_groups_neurons(*args, file, file2, mode, pad, custom_des):
 
         if number == 0: axs[number].set(ylabel = 'microns', xlabel = 'microns') # exclude y label for second graph
         else:           axs[number].set(xlabel = 'microns')
-            
 
         plt.sca(axs[0])
+        min_x, min_y = float('inf'), float('inf')       # reinitialize min values for second group
 
-        min_x, min_y = float('inf'), float('inf')
-
-    plt.axis([0-pad, max_x_+pad, 0-pad, max_y_+pad]) # adjust axes with provided padding
+    plt.axis([0-pad, max_x_+pad, 0-pad, max_y_+pad])    # adjust axes with provided padding
     plt.show()
 
 
@@ -118,28 +118,33 @@ def cmd_control():
     parser.add_argument('-f2', '--filename2', 
                         help='Second csv source of data. Structure: second column neuron number, third and fourth x,y coordinates.', 
                         type=str, required=False, dest='filename2')
-                        ####                    
-    parser.add_argument('-n', '--neuron_first', 
-                        help='Single (1*int), burst (', 
-                        nargs='*', type=int, required=True, dest='neuron_first')
-    parser.add_argument('-n2', '--neuron_other', 
-                        help='Second neuron for burst/range, or arbitrary number of neurons for group mode.', 
-                        nargs='*', type=int, dest='neuron_second')
-                        ####
     parser.add_argument('-m', '--mode', 
                         help='Options: [ single | burst | range | group ]', 
                         type=str, required=True, dest='mode')
+                        ####                    
+    parser.add_argument('-n', '--neuron_first', 
+                        help='Neurons from first file. Modes: [ single (int) | burst (from int, to int) | range (from int, to int) | group (arbitrary int(s)) ]', 
+                        nargs='*', type=int, required=True, dest='neuron_first')
+    parser.add_argument('-n2', '--neuron_other', 
+                        help='Neurons from second file. Modes: [ range (from int, to int) | group (arbitrary int(s)) ]', 
+                        nargs='*', type=int, dest='neuron_second')
+                        ####
     parser.add_argument('-p', '--padding', 
-                        help='Adjusting space around neuron in graph. Default=20', 
+                        help='Adjusting space around neuron(s) in graph. Default=20px', 
                         type=int, required=False, dest='padding', default=20)
     parser.add_argument('-d', '--description', 
-                        help='Choosing custom description for single and burst mode neuron graphs.', 
-                        type=bool, required=False, dest='description', default=False)
-    parser.add_argument('-s', '--save_normalized_data', 
-                        help='Choosing custom description for single and burst mode neuron graphs.', 
+                        help='Choosing custom description.', 
                         type=bool, required=False, dest='description', default=False)
 
+    return parser
+
+
+def execute_commands():
+    '''Executing cmd user input. '''
+
+    parser = cmd_control()
     args = parser.parse_args()
+
     try:
         if args.filename and args.filename2:
             args_ = (args.neuron_first, ) + (args.neuron_second, )
@@ -162,6 +167,4 @@ def cmd_control():
 
 
 if __name__ == "__main__":
-    cmd_control()
-
-    #c2pos5_points.csv
+    execute_commands()
