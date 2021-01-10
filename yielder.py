@@ -16,13 +16,10 @@ def filter_point_data(file):
     next(f)                     # skip header
 
     for data in f:
-        try:                      
-            if data[3] != x_crd or data[4] != y_crd: # at least one coord not equal in previous member in point
-                x_crd, y_crd = data[3], data[4]
-                yield (int(data[1]), float(x_crd), float(y_crd))
-            else:
-                continue
-        except ValueError:      # invalid_points (bad type) are silenced for neuron continuity
+        if data[3] != x_crd or data[4] != y_crd: # at least one coord not equal in previous member in point
+            x_crd, y_crd = data[3], data[4]
+            yield (int(data[1]), float(x_crd), float(y_crd))
+        else:
             continue
     
 
@@ -122,6 +119,7 @@ def save_normalized_data_to_csv(read_file, write_file, last_written_neuron, dupl
                     break
 
 
+### Control
 def cmd_control():
     '''Command line user interface. '''
     parser = argparse.ArgumentParser(description='Providing arguments for normalizing neuron point data for csv file output.')

@@ -3,9 +3,10 @@ from math import sqrt, sin, radians, acos, degrees
 import yielder as yld
 import visualizer as vis
 
-
+###Calculating
 def evaluate_growth_deviation(neuron, file):
-    '''Counts proximity of neuron point from central axis of neuron. 
+    '''Counts proximity of neuron point from central axis of neuron 
+    (connecting lowest and highest point of neuron). 
     Differentiates between below/above (+/-)'''
 
     try:
@@ -44,6 +45,8 @@ def evaluate_growth_deviation(neuron, file):
     return neuron, deviation
 
 
+### Plotting
+## Helper funcs
 def mode_decider(args, mode):
     '''Process neuron argumets based on mode. '''
     if mode == 'range' and len(args[0]) == 2 and len(args[1]) == 2:
@@ -58,13 +61,30 @@ def mode_decider(args, mode):
     
     return group
 
+def custom_description(plt, file, file2, custom_des):
+    '''Custom description for pooled and averaged graphs.'''
+    if custom_des:
+        first_group_description = input('Write description for first group: ')
+        second_group_description = input('Write description for second group: ')
+        title_ = input("Write graph title: ")
+        plt.title(title_)
+        plt.xticks([1, 2], [first_group_description, second_group_description])
+    elif not custom_des and file != file2:
+        plt.xticks([1, 2], [file, file2])
+    else:
+        plt.xticks([1, 2], ['First group', 'Second group'])
 
-### Plotting
+    return plt 
+
+
+## Plotting data
 def create_boxplots_from_separate_neurons(*args, file, file2, mode, custom_des):
+    '''Plot boxplots representing deviations of each point of neuron 
+    from central axis (connecting lowest and highest point of neuron). '''
     group = mode_decider(args, mode)
 
     package_of_neurons = list()
-    neuron_ticks = [' ']                # empty string for first xtick
+    neuron_xticks = [' ']                # empty string for first xtick
     _, axs = plt.subplots(1, 2, sharey=True)
 
     for number, file_name in enumerate((file, file2)):
@@ -72,24 +92,30 @@ def create_boxplots_from_separate_neurons(*args, file, file2, mode, custom_des):
             neuron, deviation = evaluate_growth_deviation(neuron, file_name)
             if neuron and deviation:
                 package_of_neurons.append(deviation)
-                neuron_ticks.append(neuron)
+                neuron_xticks.append(neuron)
             else:
                 continue
 
         axs[number].boxplot(package_of_neurons)
-        axs[number].set_title(file_name)
         axs[number].set(ylabel = 'microns', xlabel = 'number of neuron')
         axs[number].axhline(0, color='black', lw=0.5)
+        if custom_des:
+            descr = input(f'Write description for group {number+1}: ')
+            axs[number].set_title(descr)
+        else:
+            axs[number].set_title(file_name)
         plt.sca(axs[number])
-        plt.xticks(range(len(neuron_ticks)), neuron_ticks)
+        plt.xticks(range(len(neuron_xticks)), neuron_xticks)
 
         package_of_neurons.clear() # clearing for next iteration
-        neuron_ticks = [' ']
+        neuron_xticks = [' ']
 
     plt.show()
 
 
 def create_boxplots_from_pooled_heights_of_neuron_group(*args, file, file2, mode, custom_des):
+    '''Plot boxplots from all deviations from central axis 
+    of each point from chosen group of neurons. '''
     group = mode_decider(args, mode)
 
     groups_neuron_heights = list(), list()
@@ -107,19 +133,14 @@ def create_boxplots_from_pooled_heights_of_neuron_group(*args, file, file2, mode
     plt.axhline(0, color='black', lw=0.5)
     plt.ylabel('microns')
 
-    if custom_des:
-        first_group_description = input('Write description for first group: ')
-        second_group_description = input('Write description for first group: ')
-        plt.xticks([1, 2], [first_group_description, second_group_description])
-    elif not custom_des and file != file2:
-        plt.xticks([1, 2], [file, file2])
-    else:
-        plt.xticks([1, 2], ['First group', 'Second group'])
+    custom_description(plt, file, file2, custom_des)
 
     plt.show() 
 
 
 def create_boxplots_from_neuron_height_averages(*args, file, file2, mode, custom_des):
+    '''Plot boxplots deviations average calculated from each neuron 
+    from chosen group of neurons. '''
     group = mode_decider(args, mode)
 
     groups_neuron_heights = list(), list()
@@ -131,14 +152,16 @@ def create_boxplots_from_neuron_height_averages(*args, file, file2, mode, custom
                 groups_neuron_heights[number].append(sum(deviation)/len(deviation))
             else:
                 continue
+
+    custom_description(plt, file, file2, custom_des)
     
     plt.boxplot(groups_neuron_heights)
     plt.ylabel('microns')
     plt.axhline(0, color='black', lw=0.5)
-    plt.title('...')
     plt.show() 
 
 
+###Control
 def cmd_control():
     '''Command line user interface. Inherited from visualizer and extended for comparer. '''
     parser = vis.cmd_control()
@@ -146,9 +169,6 @@ def cmd_control():
     parser.add_argument('-o', '--option', 
                         help='Options: [ separate | pooled | averaged ]', 
                         type=str, required=True, dest='option')
-    parser.add_argument('-t', '--title', 
-                        help='Custom title', 
-                        type=bool, required=False, dest='title', default=False)
 
     args = parser.parse_args()
 

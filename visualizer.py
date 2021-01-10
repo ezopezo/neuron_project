@@ -18,6 +18,7 @@ def plot_single_neuron(neuron, file, pad, custom_des):
         return False   
 
     plt.plot(x_crds_norm, y_crds_norm)
+    plt.plot 
     
     plt.axis([0-pad, max(x_crds_norm)+pad, 0-pad, max(y_crds_norm)+pad]) 
     plt.xlabel('microns')
@@ -109,6 +110,7 @@ def plot_both_groups_neurons(*args, file, file2, mode, pad, custom_des):
     plt.show()
 
 
+# Control
 def cmd_control():
     '''Command line user interface. '''
     parser = argparse.ArgumentParser(description='Providing arguments for selective neuron graph plotting.')
