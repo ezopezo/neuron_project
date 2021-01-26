@@ -1,11 +1,11 @@
 import matplotlib.pyplot as plt
-from math import sqrt, sin, radians, acos, degrees
+from math import sqrt, sin, acos, asin, cos, radians, degrees
 import yielder as yld
 import visualizer as vis
 
 ###Calculating
 def check_and_modify_data_for_comparation(neuron, file):
-    '''Checking neuron presence, length, orientation (transpone if needed for noramlization), 
+    '''Checking neuron presence, length, orientation (transpone if needed for normalization), 
     normalize and produce data for calculation of deviations. '''
     try:
         neuron, x_coords, y_coords = yld.harvest_neuron_points(neuron, file)
@@ -17,18 +17,21 @@ def check_and_modify_data_for_comparation(neuron, file):
             if not(x_coords[0] - x_coords[-1] > 0 and y_coords[0] - y_coords[-1] > 0): 
                 transpone = True # orientation \ - sending data for transponation of neuron to / orientation
 
-
         neuron, x_coords, y_coords = yld.normalize_point_data(neuron, min(x_coords), min(y_coords), file, transpone)
-
-        length_x_axis = x_coords[0] if x_coords[0] > x_coords[-1] else x_coords[-1] # in case of different neuron orientation (see mock revrev)
-        length_y_axis = y_coords[0] if y_coords[0] > y_coords[-1] else y_coords[-1]
 
         print('Processed neuron:', neuron, 'from file:', file)
     except IndexError:
         print('Neuron not found:', neuron, 'in file:', file)
         return False
     
-    return (neuron, length_x_axis, length_y_axis, x_coords, y_coords)
+    return (neuron, x_coords, y_coords)
+
+
+def evaluate_deviation():
+    pass
+
+def evaluate_orientation():
+    pass
 
 
 def evaluate_growth_deviation(neuron, file):
@@ -38,33 +41,44 @@ def evaluate_growth_deviation(neuron, file):
     comparation_data = check_and_modify_data_for_comparation(neuron, file)
     
     if comparation_data:
-        neuron, length_x_axis, length_y_axis, x_coords, y_coords = comparation_data
+        neuron, x_coords, y_coords = comparation_data
     else:
         return False, False
 
-    neuron_centr_ax_length = sqrt(length_x_axis**2 + length_y_axis**2) # connecting most distant points of neuron
-    # angles of triangle x axis / y axis / neuron central axis 
-    angle_b = acos((neuron_centr_ax_length**2 + length_y_axis**2 - length_x_axis**2) / (2*neuron_centr_ax_length*length_y_axis))
-    angle_a = radians(90) - angle_b # subtracted from x axis / y axis right angle
-    deviation = list() # prepared instance of list for all deviations (distance of point from neuron central axis)
+    # deviation calculation
+    neuron_centr_ax_length  = sqrt((x_coords[0] - x_coords[-1])**2 + (y_coords[0] - y_coords[-1])**2) # connecting most distant points of neuron
+    deviation = list()                                # prepared instance of list for all deviations (distance of point from neuron central axis)
+
+    # calculating of definition below/above
+    height_of_triangle      = y_coords[0] if y_coords[0] > y_coords[-1] else y_coords[-1] # choosong from which end of neuron position (+/-) of point will be counted (avoiding case y_coords[0] == 0)
+    angle_a                 = asin(height_of_triangle/neuron_centr_ax_length)      # angle between x axis and central axis
+    side_along_central      = x_coords[0]/cos(angle_a)                             # side of triangle passing through or be identical with central axis          
+    side_along_y            = side_along_central * sin(angle_a)                    # side of triangle passing through or be identical with y axis   
+
     
     for x, y in zip(x_coords, y_coords):
-        height_triangle_x_ax = y*sin(angle_b)/sin(angle_a) 
-        height_triangle_y_ax = x*sin(angle_a)/sin(angle_b) 
-        a_side = abs(height_triangle_x_ax - x)
-        b_side = abs(height_triangle_y_ax - y)
-        c_side = sqrt(a_side**2 + b_side**2)
-        triangle_area = 0.5 * a_side * c_side * sin(angle_a)
-        
-        try:                                  
-            height = 2*triangle_area/c_side
-            if height_triangle_y_ax < y:
-                deviation.append(round(height, 6)) # above neuron central axis - positive
-            else:
-                deviation.append(round(-height, 6)) # below neuron central axis - negative
-        except ZeroDivisionError: # if c side is 0 deviation == 0 (point is on central axis or first/last point)
+        bottom__point_len = sqrt((x - x_coords[-1])**2 + (y - y_coords[-1])**2)  # distance of bottom point of neuron and calculated point
+        top__point_len = sqrt((x - x_coords[0])**2 + (y - y_coords[0])**2)       # distance of top point of neuron and calculated point
+        try:
+            # deviation calculation for each point
+            angle_c = acos((bottom__point_len**2 + top__point_len**2 - neuron_centr_ax_length**2)/(2*bottom__point_len*top__point_len))   # angle for area calculation
+            area = (bottom__point_len*top__point_len*sin(angle_c))/2        # area of triangle x,y point - bottom point - top point of neuron
+            height = 2*area/neuron_centr_ax_length                          # height of triangle represents deviation from central axis
+
+            # calculating of definition below/above for each point
+            y_position = side_along_y - (y_coords[0] - y)                   # calculating of subtraction of each y_coordinate with first y point and subtract from side of triangle passing through or be identical with y axis   
+            side_along_central_for_new_base = y_position / sin(angle_a)     # subtratcting previous value from 
+            base_on_y_level = sqrt((side_along_central_for_new_base**2) - (y_position**2)) # calculating base of new triangle: 
+
+            if x < base_on_y_level: deviation.append(height) # if base (distance from y axis to central axis) is higher than x position (distance form y axis to point) of point, point is "above" - positive float
+            else:                   deviation.append(-height)
+
+        except ZeroDivisionError: # if point is first or last (division err naturally)
+            deviation.append(0)
+        except ValueError: # if point is on central axis
             deviation.append(0)
 
+    #print(neuron, deviation)
     return neuron, deviation
 
 
@@ -122,6 +136,7 @@ def create_boxplots_from_separate_neurons(*args, file, file2, mode, custom_des):
     plt.show()
 
 
+
 def create_boxplots_from_pooled_heights_of_neuron_group(*args, file, file2, mode, custom_des):
     '''Plot boxplots from all deviations from central axis 
     of each point from chosen group of neurons. '''
@@ -160,13 +175,14 @@ def create_boxplots_from_neuron_height_averages(*args, file, file2, mode, custom
             if neuron and deviation:
                 groups_neuron_heights[number].append(sum(deviation)/len(deviation))
             else:
-                continue
-
-    custom_description(plt, file, file2, custom_des)
+                continue  
     
     plt.boxplot(groups_neuron_heights)
-    plt.ylabel('microns')
     plt.axhline(0, color='black', lw=0.5)
+    plt.ylabel('microns')
+
+    custom_description(plt, file, file2, custom_des)
+
     plt.show() 
 
 
@@ -188,22 +204,22 @@ def execute_commands():
     '''Executing cmd user input. '''
     args = cmd_control()
 
-    #try:
-    if args.filename and args.filename2 and args.option == 'separated':
-        args_ = (args.neuron_first, ) + (args.neuron_second, )
-        create_boxplots_from_separate_neurons(*args_, file=args.filename, file2=args.filename2, mode=args.mode, custom_des=args.description)
-    elif args.filename and args.filename2 and args.option == 'pooled':
-        args_ = (args.neuron_first, ) + (args.neuron_second, )
-        create_boxplots_from_pooled_heights_of_neuron_group(*args_, file=args.filename, file2=args.filename2, mode=args.mode, custom_des=args.description)
-    elif args.filename and args.filename2 and args.option == 'averaged':
-        args_ = (args.neuron_first, ) + (args.neuron_second, )
-        create_boxplots_from_neuron_height_averages(*args_, file=args.filename, file2=args.filename2, mode=args.mode, custom_des=args.description)
-    else:
+    try:
+        if args.filename and args.filename2 and args.option == 'separated':
+            args_ = (args.neuron_first, ) + (args.neuron_second, )
+            print(args_)
+            create_boxplots_from_separate_neurons(*args_, file=args.filename, file2=args.filename2, mode=args.mode, custom_des=args.description)
+        elif args.filename and args.filename2 and args.option == 'pooled':
+            args_ = (args.neuron_first, ) + (args.neuron_second, )
+            create_boxplots_from_pooled_heights_of_neuron_group(*args_, file=args.filename, file2=args.filename2, mode=args.mode, custom_des=args.description)
+        elif args.filename and args.filename2 and args.option == 'averaged':
+            args_ = (args.neuron_first, ) + (args.neuron_second, )
+            create_boxplots_from_neuron_height_averages(*args_, file=args.filename, file2=args.filename2, mode=args.mode, custom_des=args.description)
+        else:
+            print('Wrong usage. Check command line arguments.')
+    except TypeError:
         print('Wrong usage. Check command line arguments.')
-    #except TypeError:
-    #    print('Wrong usage. Check command line arguments.')
 
 
 if __name__ == '__main__':
     execute_commands()
-    pass
