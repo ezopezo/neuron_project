@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-from math import sqrt, sin, acos, asin, cos, radians, degrees
+from math import sqrt, sin, acos, asin, cos
 import yielder as yld
 import visualizer as vis
 
