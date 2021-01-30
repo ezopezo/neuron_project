@@ -27,13 +27,6 @@ def check_and_modify_data_for_comparation(neuron, file):
     return (neuron, x_coords, y_coords)
 
 
-def evaluate_deviation():
-    pass
-
-def evaluate_orientation():
-    pass
-
-
 def evaluate_growth_deviation(neuron, file):
     '''Counts proximity of neuron point from central axis of neuron 
     (connecting lowest and highest point of neuron). 
@@ -78,7 +71,6 @@ def evaluate_growth_deviation(neuron, file):
         except ValueError: # if point is on central axis
             deviation.append(0)
 
-    #print(neuron, deviation)
     return neuron, deviation
 
 

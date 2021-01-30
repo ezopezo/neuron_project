@@ -23,8 +23,6 @@ def plot_single_neuron(neuron, file, pad, custom_des, transpone):
             return False   
 
     plt.plot(x_crds_norm, y_crds_norm)
-    plt.plot 
-    
     plt.axis([0-pad, max(x_crds_norm)+pad, 0-pad, max(y_crds_norm)+pad]) 
     plt.xlabel('microns')
     plt.ylabel('microns')
@@ -36,6 +34,7 @@ def plot_single_neuron(neuron, file, pad, custom_des, transpone):
         plt.title('Neuron {}'.format(neuron))
 
     plt.show()
+
 
 
 def plot_neurons_sequentially(from_num, to_num, file, pad, custom_des, transpone):
@@ -101,9 +100,6 @@ def plot_both_groups_neurons(*args, file, file2, mode, pad, custom_des):
                 neuron, x_crds, y_crds = yld.normalize_point_data(neuron, min_x, min_y, file_name, transpone=False)
                 axs[number].plot(x_crds, y_crds)
 
-                #central axis
-                #axs[number].plot([x_crds[0], x_crds[-1]], [y_crds[0], y_crds[-1]])
-
                 max_x_ = max(x_crds) if max(x_crds) > max_x_ else max_x_        # max needed from semi-normalized data
                 max_y_ = max(y_crds) if max(y_crds) > max_y_ else max_y_    
             except ValueError:
@@ -120,7 +116,6 @@ def plot_both_groups_neurons(*args, file, file2, mode, pad, custom_des):
 
         plt.sca(axs[0])
         min_x, min_y = float('inf'), float('inf')       # reinitialize min values for second group
-
 
     plt.axis([0-pad, max_x_+pad, 0-pad, max_y_+pad])    # adjust axes with provided padding
     plt.show()
@@ -166,25 +161,25 @@ def execute_commands():
     parser = cmd_control()
     args = parser.parse_args()
 
-    #try:
-    if args.filename and args.filename2:
-        args_ = (args.neuron_first, ) + (args.neuron_second, )
-        plot_both_groups_neurons(*args_, file=args.filename, file2=args.filename2, mode=args.mode, pad=args.padding, custom_des=args.description)
+    try:
+        if args.filename and args.filename2:
+            args_ = (args.neuron_first, ) + (args.neuron_second, )
+            plot_both_groups_neurons(*args_, file=args.filename, file2=args.filename2, mode=args.mode, pad=args.padding, custom_des=args.description)
 
-    else:
-        if args.mode == 'single':
-            plot_single_neuron(*args.neuron_first, args.filename, args.padding, args.description, args.transpone)
-        elif args.mode == 'burst' and len(args.neuron_first) == 2 and args.neuron_first[0] < args.neuron_first[1]:
-            plot_neurons_sequentially(*args.neuron_first, args.filename, args.padding, args.description, args.transpone)
-        elif args.mode == 'range' and len(args.neuron_first) == 2 and args.neuron_first[0] < args.neuron_first[1]:
-            plot_range_of_neurons(*args.neuron_first, file=args.filename, mode=args.mode, pad=args.padding) # decription always
-        elif args.mode == 'group':
-            args_ = tuple(args.neuron_first)
-            plot_range_of_neurons(*args_, file=args.filename, mode=args.mode, pad=args.padding) # decription always
         else:
-            print('Wrong usage. Check command line arguments.')
-    #except TypeError:
-    #    print('Wrong usage. Check command line arguments.')
+            if args.mode == 'single':
+                plot_single_neuron(*args.neuron_first, args.filename, args.padding, args.description, args.transpone)
+            elif args.mode == 'burst' and len(args.neuron_first) == 2 and args.neuron_first[0] < args.neuron_first[1]:
+                plot_neurons_sequentially(*args.neuron_first, args.filename, args.padding, args.description, args.transpone)
+            elif args.mode == 'range' and len(args.neuron_first) == 2 and args.neuron_first[0] < args.neuron_first[1]:
+                plot_range_of_neurons(*args.neuron_first, file=args.filename, mode=args.mode, pad=args.padding) # decription always
+            elif args.mode == 'group':
+                args_ = tuple(args.neuron_first)
+                plot_range_of_neurons(*args_, file=args.filename, mode=args.mode, pad=args.padding) # decription always
+            else:
+                print('Wrong usage. Check command line arguments.')
+    except TypeError:
+        print('Wrong usage. Check command line arguments.')
 
 
 if __name__ == "__main__":

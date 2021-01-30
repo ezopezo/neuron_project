@@ -4,7 +4,7 @@ import yielder as yld
 from collections import Counter
 
 def check_file(file):
-    '''Checking file data for further processing. '''
+    '''Checking csv file data. '''
     bad_lines = set()
     bad_neurons = set()
     x_crd, y_crd = None, None
